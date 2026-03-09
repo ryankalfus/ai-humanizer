@@ -48,6 +48,15 @@ export function downgradeOverwrittenWords(text: string) {
   return output;
 }
 
+export function cleanupSurfacePatterns(text: string) {
+  return text
+    .replace(/—/g, ", ")
+    .replace(/\bUltimately,\s*/gi, "")
+    .replace(/\bIn conclusion,\s*/gi, "")
+    .replace(/\bTo summarize,\s*/gi, "")
+    .replace(/\bOverall,\s*/gi, "");
+}
+
 export function scoreNaturalness(text: string) {
   const lower = text.toLowerCase();
   const overAdvancedCount = Object.keys(OVER_ADVANCED_SWAPS).reduce(

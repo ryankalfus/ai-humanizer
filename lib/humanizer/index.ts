@@ -4,7 +4,7 @@ import {
   restoreProtectedSpans,
   type ProtectedSpan,
 } from "@/lib/humanizer/citations";
-import { downgradeOverwrittenWords } from "@/lib/humanizer/naturalness";
+import { cleanupSurfacePatterns } from "@/lib/humanizer/naturalness";
 import { HumanizerError } from "@/lib/humanizer/errors";
 import { getModelName, getOpenAIClient } from "@/lib/humanizer/openai";
 import {
@@ -104,7 +104,7 @@ async function generateText(prompt: string) {
 }
 
 function finalizeOutput(outputText: string, spans: ProtectedSpan[]) {
-  return downgradeOverwrittenWords(restoreProtectedSpans(outputText, spans));
+  return cleanupSurfacePatterns(restoreProtectedSpans(outputText, spans));
 }
 
 function chooseBestCandidate(candidates: Candidate[]) {
@@ -134,7 +134,7 @@ export async function humanizeEssay(request: HumanizeRequest): Promise<HumanizeR
   const originalWordCount = countWords(request.text);
   const iterationCount = getIterationCount(request.humanLikeLevel);
   const candidates: Candidate[] = [];
-  let latestValidCandidate: Candidate | null = null;
+  let finalCandidate: Candidate | null = null;
 
   let currentProtectedEssay = applyProtectedSpans(request.text, allProtectedSpans);
   let latestValidation: ValidationResult | null = null;
@@ -191,25 +191,23 @@ export async function humanizeEssay(request: HumanizeRequest): Promise<HumanizeR
       validation,
     });
 
-    if (validation.isValid) {
-      latestValidCandidate = {
-        outputText: restoredOutput,
-        selfCheck: generation.selfCheck,
-        validation,
-      };
-    }
+    finalCandidate = {
+      outputText: restoredOutput,
+      selfCheck: generation.selfCheck,
+      validation,
+    };
 
     latestValidation = validation;
     currentProtectedEssay = applyProtectedSpans(restoredOutput, allProtectedSpans);
   }
 
-  if (latestValidCandidate) {
-    const constraintReport = buildConstraintReport(request, latestValidCandidate.outputText);
+  if (finalCandidate) {
+    const constraintReport = buildConstraintReport(request, finalCandidate.outputText);
 
     return {
-      outputText: latestValidCandidate.outputText,
+      outputText: finalCandidate.outputText,
       originalWordCount,
-      outputWordCount: countWords(latestValidCandidate.outputText),
+      outputWordCount: countWords(finalCandidate.outputText),
       appliedSettings: {
         protectedTerms: request.protectedTerms,
         tone: request.tone,
@@ -225,9 +223,9 @@ export async function humanizeEssay(request: HumanizeRequest): Promise<HumanizeR
       paragraphCountMatched: constraintReport.paragraphCountMatched,
       citationsPreserved: constraintReport.citationsPreserved,
       protectedTermsPreserved: constraintReport.protectedTermsPreserved,
-      warnings: buildWarnings(latestValidCandidate.validation, latestValidCandidate.selfCheck),
-      validation: latestValidCandidate.validation,
-      readabilityBand: estimateGradeBand(latestValidCandidate.outputText),
+      warnings: buildWarnings(finalCandidate.validation, finalCandidate.selfCheck),
+      validation: finalCandidate.validation,
+      readabilityBand: estimateGradeBand(finalCandidate.outputText),
       naturalnessScore: constraintReport.naturalnessScore,
     };
   }
