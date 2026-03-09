@@ -1,21 +1,20 @@
 import OpenAI from "openai";
+import { getHumanizerConfig } from "@/lib/humanizer/config";
 
 let client: OpenAI | null = null;
+let cachedApiKey: string | null = null;
 
 export function getOpenAIClient() {
-  const apiKey = process.env.OPENAI_API_KEY;
+  const { apiKey } = getHumanizerConfig();
 
-  if (!apiKey) {
-    throw new Error("Missing OPENAI_API_KEY. Add it to your environment before using the app.");
-  }
-
-  if (!client) {
+  if (!client || cachedApiKey !== apiKey) {
     client = new OpenAI({ apiKey });
+    cachedApiKey = apiKey;
   }
 
   return client;
 }
 
 export function getModelName() {
-  return process.env.OPENAI_MODEL || "gpt-4.1-mini";
+  return getHumanizerConfig().modelName;
 }

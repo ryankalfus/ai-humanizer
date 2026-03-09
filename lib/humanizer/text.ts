@@ -93,3 +93,20 @@ export function formatGradeLabel(level: GradeLevel) {
       return "Graduate";
   }
 }
+
+export function getSentences(input: string) {
+  return normalizeLineEndings(input)
+    .split(/(?<=[.!?])\s+/g)
+    .map((sentence) => sentence.trim())
+    .filter(Boolean);
+}
+
+export function getSentenceOpeners(input: string) {
+  return getSentences(input)
+    .map((sentence) => sentence.match(/\b[\w'-]+\b/i)?.[0]?.toLowerCase() ?? "")
+    .filter(Boolean);
+}
+
+export function getSentenceLengths(input: string) {
+  return getSentences(input).map((sentence) => countWords(sentence));
+}

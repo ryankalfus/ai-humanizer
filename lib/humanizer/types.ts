@@ -19,10 +19,44 @@ export interface ValidationResult {
   violations: string[];
 }
 
+export interface AppliedSettings {
+  protectedTerms: string[];
+  tone: Tone;
+  gradeLevel: GradeLevel;
+  wordDelta: number;
+  paragraphCountTarget: number;
+  originalWordCount: number;
+}
+
+export interface ConstraintReport {
+  paragraphCountMatched: boolean;
+  citationsPreserved: boolean;
+  protectedTermsPreserved: boolean;
+  wordRangeMatched: boolean;
+  readabilityMatched: boolean;
+  naturalnessScore: number;
+  unmetConstraints: string[];
+}
+
+export interface ModelSelfCheck {
+  protectedTermsKept: boolean;
+  citationsKept: boolean;
+  paragraphCountKept: boolean;
+  wordRangeKept: boolean;
+  toneMatched: boolean;
+  readingLevelMatched: boolean;
+  notes: string[];
+}
+
 export interface HumanizeResponse {
   outputText: string;
   originalWordCount: number;
   outputWordCount: number;
+  appliedSettings: AppliedSettings;
+  constraintReport: ConstraintReport;
+  iterationCount: number;
+  status: "success";
+  errorCode?: string;
   paragraphCountMatched: boolean;
   citationsPreserved: boolean;
   protectedTermsPreserved: boolean;
@@ -30,4 +64,17 @@ export interface HumanizeResponse {
   validation: ValidationResult;
   readabilityBand: string;
   naturalnessScore: number;
+}
+
+export interface AppStatusResponse {
+  aiConfigured: boolean;
+  modelName?: string;
+  setupMessage?: string;
+  errorCode?: string;
+}
+
+export interface ApiErrorResponse {
+  error: string;
+  code: string;
+  details?: string;
 }
