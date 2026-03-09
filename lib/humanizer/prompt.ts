@@ -9,6 +9,7 @@ export function buildHumanizerPrompt(
   request: HumanizeRequest,
   protectedEssay: string,
   citationPlaceholders: string[],
+  attemptNumber = 1,
 ) {
   const paragraphCount = splitParagraphs(request.text).length;
   const originalWordCount = countWords(request.text);
@@ -48,6 +49,10 @@ Rewrite method:
 4. Vary rhythm, phrasing, and sentence order so the writing does not feel machine-flat.
 5. Before answering, confirm that every hard rule still holds.
 
+Current pass:
+- This is pass ${attemptNumber} of 8.
+- Make the writing feel fresher and less template-like than the previous attempt.
+
 Return exactly this format:
 <rewritten_essay>
 [the rewritten essay only]
@@ -66,6 +71,7 @@ export function buildRepairPrompt(
   protectedEssay: string,
   violations: string[],
   citationPlaceholders: string[],
+  attemptNumber: number,
 ) {
   const paragraphCount = splitParagraphs(request.text).length;
   const originalWordCount = countWords(request.text);
@@ -98,6 +104,10 @@ Repair method:
 3. If needed, lightly rephrase nearby sentences so the repaired result still sounds natural.
 4. Before answering, confirm that every hard rule now holds.
 
+Current pass:
+- This is pass ${attemptNumber} of 8.
+- Improve the writing while fixing the listed problems.
+
 Return exactly this format:
 <rewritten_essay>
 [the repaired essay only]
@@ -107,6 +117,53 @@ Return exactly this format:
 </self_check>
 
 Essay to repair:
+${protectedEssay}
+`.trim();
+}
+
+export function buildRefinementPrompt(
+  request: HumanizeRequest,
+  protectedEssay: string,
+  citationPlaceholders: string[],
+  attemptNumber: number,
+) {
+  const paragraphCount = splitParagraphs(request.text).length;
+  const originalWordCount = countWords(request.text);
+
+  return `
+Refine this already-valid essay so it sounds even more natural, more varied, and more human in rhythm while keeping every requirement exact.
+
+Refinement goals:
+- Keep the same meaning.
+- Keep the strongest natural phrasing.
+- Rewrite any remaining generic or flat wording into fresher language.
+- Use meaningful paraphrasing, clause reordering, and smoother sentence flow.
+- Vary sentence openings and pacing.
+- Avoid robotic repetition and overly neat symmetry.
+- Replace wording only when the replacement is common, clear, and context-matching.
+
+Hard rules:
+- Return exactly ${paragraphCount} paragraphs.
+- Keep every citation placeholder exactly as written: ${listOrNone(citationPlaceholders)}.
+- Keep these protected words or phrases exactly unchanged: ${listOrNone(request.protectedTerms)}.
+- Keep the final essay within +/- ${request.wordDelta} words of ${originalWordCount} words.
+- Match this tone: ${request.tone}.
+- Match this writing level: ${formatGradeLabel(request.gradeLevel)}.
+- Preserve the original meaning.
+
+Current pass:
+- This is pass ${attemptNumber} of 8.
+- Keep all hard rules fully intact while refining the writing.
+
+Return exactly this format:
+<rewritten_essay>
+[the refined essay only]
+</rewritten_essay>
+<self_check>
+{"protectedTermsKept":true,"citationsKept":true,"paragraphCountKept":true,"wordRangeKept":true,"toneMatched":true,"readingLevelMatched":true,"notes":["short note"]}
+</self_check>
+
+Essay to refine:
 ${protectedEssay}
 `.trim();
 }

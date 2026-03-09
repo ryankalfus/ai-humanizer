@@ -219,10 +219,6 @@ export default function HomePage() {
                   <strong>Estimated reading band</strong>
                   <span>{result.readabilityBand}</span>
                 </div>
-                <div className="stat">
-                  <strong>Iterations used</strong>
-                  <span>{result.iterationCount}</span>
-                </div>
               </div>
 
               <div className="flags">

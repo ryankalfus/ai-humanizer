@@ -7,7 +7,11 @@ import {
 import { downgradeOverwrittenWords } from "@/lib/humanizer/naturalness";
 import { HumanizerError } from "@/lib/humanizer/errors";
 import { getModelName, getOpenAIClient } from "@/lib/humanizer/openai";
-import { buildHumanizerPrompt, buildRepairPrompt } from "@/lib/humanizer/prompt";
+import {
+  buildHumanizerPrompt,
+  buildRefinementPrompt,
+  buildRepairPrompt,
+} from "@/lib/humanizer/prompt";
 import type {
   HumanizeRequest,
   HumanizeResponse,
@@ -123,6 +127,7 @@ export async function humanizeEssay(request: HumanizeRequest): Promise<HumanizeR
   const paragraphCountTarget = splitParagraphs(request.text).length;
   const originalWordCount = countWords(request.text);
   const candidates: Candidate[] = [];
+  let latestValidCandidate: Candidate | null = null;
 
   let currentProtectedEssay = applyProtectedSpans(request.text, allProtectedSpans);
   let latestValidation: ValidationResult | null = null;
@@ -130,15 +135,27 @@ export async function humanizeEssay(request: HumanizeRequest): Promise<HumanizeR
   for (let attempt = 0; attempt < MAX_ATTEMPTS; attempt += 1) {
     const generation =
       attempt === 0
-        ? await generateText(buildHumanizerPrompt(request, currentProtectedEssay, citationPlaceholders))
-        : await generateText(
-            buildRepairPrompt(
-              request,
-              currentProtectedEssay,
-              latestValidation?.violations ?? ["The rewrite still needs to follow the hard rules."],
-              citationPlaceholders,
-            ),
-          );
+        ? await generateText(
+            buildHumanizerPrompt(request, currentProtectedEssay, citationPlaceholders, attempt + 1),
+          )
+        : latestValidation?.isValid
+          ? await generateText(
+              buildRefinementPrompt(
+                request,
+                currentProtectedEssay,
+                citationPlaceholders,
+                attempt + 1,
+              ),
+            )
+          : await generateText(
+              buildRepairPrompt(
+                request,
+                currentProtectedEssay,
+                latestValidation?.violations ?? ["The rewrite still needs to follow the hard rules."],
+                citationPlaceholders,
+                attempt + 1,
+              ),
+            );
 
     const restoredOutput = finalizeOutput(generation.outputText, allProtectedSpans);
     const validation = validateRewrite(request, restoredOutput);
@@ -150,35 +167,43 @@ export async function humanizeEssay(request: HumanizeRequest): Promise<HumanizeR
     });
 
     if (validation.isValid) {
-      const constraintReport = buildConstraintReport(request, restoredOutput);
-
-      return {
+      latestValidCandidate = {
         outputText: restoredOutput,
-        originalWordCount,
-        outputWordCount: countWords(restoredOutput),
-        appliedSettings: {
-          protectedTerms: request.protectedTerms,
-          tone: request.tone,
-          gradeLevel: request.gradeLevel,
-          wordDelta: request.wordDelta,
-          paragraphCountTarget,
-          originalWordCount,
-        },
-        constraintReport,
-        iterationCount: attempt + 1,
-        status: "success",
-        paragraphCountMatched: constraintReport.paragraphCountMatched,
-        citationsPreserved: constraintReport.citationsPreserved,
-        protectedTermsPreserved: constraintReport.protectedTermsPreserved,
-        warnings: buildWarnings(validation, generation.selfCheck),
+        selfCheck: generation.selfCheck,
         validation,
-        readabilityBand: estimateGradeBand(restoredOutput),
-        naturalnessScore: constraintReport.naturalnessScore,
       };
     }
 
     latestValidation = validation;
     currentProtectedEssay = applyProtectedSpans(restoredOutput, allProtectedSpans);
+  }
+
+  if (latestValidCandidate) {
+    const constraintReport = buildConstraintReport(request, latestValidCandidate.outputText);
+
+    return {
+      outputText: latestValidCandidate.outputText,
+      originalWordCount,
+      outputWordCount: countWords(latestValidCandidate.outputText),
+      appliedSettings: {
+        protectedTerms: request.protectedTerms,
+        tone: request.tone,
+        gradeLevel: request.gradeLevel,
+        wordDelta: request.wordDelta,
+        paragraphCountTarget,
+        originalWordCount,
+      },
+      constraintReport,
+      iterationCount: MAX_ATTEMPTS,
+      status: "success",
+      paragraphCountMatched: constraintReport.paragraphCountMatched,
+      citationsPreserved: constraintReport.citationsPreserved,
+      protectedTermsPreserved: constraintReport.protectedTermsPreserved,
+      warnings: buildWarnings(latestValidCandidate.validation, latestValidCandidate.selfCheck),
+      validation: latestValidCandidate.validation,
+      readabilityBand: estimateGradeBand(latestValidCandidate.outputText),
+      naturalnessScore: constraintReport.naturalnessScore,
+    };
   }
 
   const bestCandidate = chooseBestCandidate(candidates);
