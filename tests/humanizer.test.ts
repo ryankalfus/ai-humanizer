@@ -251,20 +251,35 @@ describe("prompt design", () => {
     expect(prompt).toContain("85/100");
     expect(prompt).toContain("Every iteration should STAY CONSISTENT");
     expect(prompt).toContain("Research-informed guidance:");
+    expect(prompt).toContain("Statistical naturalness targets:");
     expect(prompt).toContain("Vocabulary-diversification rule:");
     expect(prompt).toContain("Paragraph-level rewrite rule:");
     expect(prompt).toContain("Rewrite-distance target:");
-    expect(prompt).toContain("paragraph-level paraphrasing changes discourse-level patterns");
-    expect(prompt).toContain("Multi-step rewriting also works better than a one-shot pass");
+    expect(prompt).toContain("Model-fingerprint mitigation:");
+    expect(prompt).toContain("Entropy injection:");
+    expect(prompt).toContain("Controlled imperfection:");
+    expect(prompt).toContain("coefficient of variation above 0.40");
+    expect(prompt).toContain("Transition word density should not exceed 3% of total word count");
+    expect(prompt).toContain("Paragraph-level paraphrasing (reshaping how ideas flow within a paragraph as a unit)");
+    expect(prompt).toContain("Multi-step rewriting that alternates compression, expansion, reordering, and vocabulary refresh");
     expect(prompt).toContain("Vary verbs first, then modifiers, then repeated noun phrases.");
     expect(prompt).toContain("less common vocabulary");
     expect(prompt).toContain("raise the lexical register");
+    expect(prompt).toContain('do not use "X, Y, and Z" triadic parallel lists more than once per 500 words');
+    expect(prompt).toContain("do not create balanced sentence pairs with matching structure and length back-to-back");
+    expect(prompt).toContain("ensure high sentence-length variance");
     expect(prompt).toContain("a. Create version (a) from the original essay only.");
     expect(prompt).toContain("h. Create version (h) using ONLY version (g).");
     expect(prompt).toContain("i. Now evaluate ONLY version (h) against all user guardrails");
     expect(prompt).toContain("j. Create version (j) using ONLY version (i).");
     expect(prompt).toContain("Rewrite each paragraph as a full unit");
     expect(prompt).toContain("Treat each paragraph as a mini-structure");
+    expect(prompt).toContain("For this step, internally draft TWO alternative versions of each paragraph.");
+    expect(prompt).toContain("Carry only the selected version forward as version (b).");
+    expect(prompt).toContain("Carry only the selected version forward as version (d).");
+    expect(prompt).toContain("Carry only the selected version forward as version (f).");
+    expect(prompt).toContain("Carry only the selected version forward as version (h).");
+    expect(prompt).toContain("scan the output for: (1) any run of 3+ sentences with similar word counts");
     expect(prompt).toContain("Do not print steps (a) through (i).");
     expect(prompt).toContain("Output only the final version from step (j)");
   });
@@ -307,6 +322,8 @@ describe("prompt design", () => {
     expect(highPrompt).toContain("maximum");
     expect(highPrompt).toContain("Aim for the maximum rewrite distance");
     expect(highPrompt).toContain("do not settle for a near-copy");
+    expect(highPrompt).toContain("maximize statistical naturalness");
+    expect(highPrompt).toContain("inject natural imperfections and unexpected structural choices");
   });
 
   it("does not tell the model to print None provided when no optional guards exist", () => {
