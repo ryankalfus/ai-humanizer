@@ -28,6 +28,8 @@ interface Candidate {
   validation: ValidationResult;
 }
 
+const MAX_ATTEMPTS = 8;
+
 const defaultSelfCheck: ModelSelfCheck = {
   protectedTermsKept: false,
   citationsKept: false,
@@ -125,7 +127,7 @@ export async function humanizeEssay(request: HumanizeRequest): Promise<HumanizeR
   let currentProtectedEssay = applyProtectedSpans(request.text, allProtectedSpans);
   let latestValidation: ValidationResult | null = null;
 
-  for (let attempt = 0; attempt < 3; attempt += 1) {
+  for (let attempt = 0; attempt < MAX_ATTEMPTS; attempt += 1) {
     const generation =
       attempt === 0
         ? await generateText(buildHumanizerPrompt(request, currentProtectedEssay, citationPlaceholders))

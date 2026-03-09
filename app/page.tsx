@@ -206,36 +206,6 @@ export default function HomePage() {
 
           {result ? (
             <>
-              <div className="card">
-                <h3>Applied settings</h3>
-                <div className="stats">
-                  <div className="stat">
-                    <strong>Tone</strong>
-                    <span>{result.appliedSettings.tone}</span>
-                  </div>
-                  <div className="stat">
-                    <strong>Writing level</strong>
-                    <span>{result.appliedSettings.gradeLevel}</span>
-                  </div>
-                  <div className="stat">
-                    <strong>Word flexibility</strong>
-                    <span>±{result.appliedSettings.wordDelta}</span>
-                  </div>
-                  <div className="stat">
-                    <strong>Paragraph target</strong>
-                    <span>{result.appliedSettings.paragraphCountTarget}</span>
-                  </div>
-                </div>
-                <div className="field">
-                  <label>Protected words and phrases</label>
-                  <div className="compact-list">
-                    {result.appliedSettings.protectedTerms.length
-                      ? result.appliedSettings.protectedTerms.join(", ")
-                      : "None"}
-                  </div>
-                </div>
-              </div>
-
               <div className="stats">
                 <div className="stat">
                   <strong>Original word count</strong>
@@ -283,16 +253,22 @@ export default function HomePage() {
               </div>
 
               <div className="card">
-                <h3>Humanized essay</h3>
-                <button
-                  className="essay-view"
-                  type="button"
-                  onClick={() => setResultExpanded((current) => !current)}
-                >
-                  <div className={resultExpanded ? "essay-output expanded" : "essay-output"}>
-                    {result.outputText}
-                  </div>
-                </button>
+                <div className="result-header">
+                  <h3>Humanized essay</h3>
+                  <button
+                    className="text-toggle"
+                    type="button"
+                    onClick={() => setResultExpanded((current) => !current)}
+                  >
+                    {resultExpanded ? "Collapse" : "Expand"}
+                  </button>
+                </div>
+                <textarea
+                  className={resultExpanded ? "result-text expanded" : "result-text"}
+                  value={result.outputText}
+                  readOnly
+                  onFocus={() => setResultExpanded(true)}
+                />
               </div>
             </>
           ) : null}

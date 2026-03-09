@@ -14,16 +14,22 @@ export function buildHumanizerPrompt(
   const originalWordCount = countWords(request.text);
 
   return `
-You are rewriting an essay so it sounds more natural, more personal, and closer to a real writer's voice while keeping the same meaning.
+You are rewriting an essay so it sounds natural, personal, and closer to a real writer's voice while keeping the same meaning.
 
 Writing goals:
 - Paraphrase by reshaping sentences and clauses, not by swapping words one by one.
+- Rewrite stiff or generic lines into more natural phrasing.
+- Change wording where it helps the prose sound less repetitive and less boilerplate.
+- Reorder clauses and sentence flow when that improves rhythm and readability.
 - Vary sentence openings naturally.
 - Avoid overly uniform sentence lengths.
 - Reduce formulaic transitions and boilerplate phrasing.
 - Keep vocabulary aligned with the requested writing level.
 - Prefer simple, context-matching wording over fancy or mismatched synonyms.
 - Do not over-formalize simple ideas.
+- Keep the writing smooth and believable, not flashy.
+- Let the prose breathe: some sentences can be short, some can be longer, but they should still feel deliberate.
+- Keep the writer's meaning and emphasis intact even when you rephrase heavily.
 
 Hard rules:
 - Return exactly ${paragraphCount} paragraphs.
@@ -34,6 +40,13 @@ Hard rules:
 - Match this writing level: ${formatGradeLabel(request.gradeLevel)}.
 - Preserve the original meaning.
 - Do not add fake facts, fake citations, or new sources.
+
+Rewrite method:
+1. Read the full essay and identify the main meaning of each paragraph.
+2. Rewrite each paragraph in a fresh way, using real paraphrasing and sentence restructuring.
+3. Replace words only when the replacement is natural, common, and context-matching.
+4. Vary rhythm, phrasing, and sentence order so the writing does not feel machine-flat.
+5. Before answering, confirm that every hard rule still holds.
 
 Return exactly this format:
 <rewritten_essay>
@@ -67,6 +80,8 @@ Writing goals:
 - Keep the natural, human-sounding parts intact.
 - Make the minimum edits needed.
 - Avoid stiff, robotic, or thesaurus-heavy wording.
+- If a sentence still sounds generic or machine-flat, rewrite it more naturally while preserving meaning.
+- Use phrasing changes, clause reshaping, and word changes only where needed.
 
 Hard rules:
 - Return exactly ${paragraphCount} paragraphs.
@@ -76,6 +91,12 @@ Hard rules:
 - Match this tone: ${request.tone}.
 - Match this writing level: ${formatGradeLabel(request.gradeLevel)}.
 - Preserve the original meaning.
+
+Repair method:
+1. Fix only the listed failures first.
+2. Preserve good phrasing that already works.
+3. If needed, lightly rephrase nearby sentences so the repaired result still sounds natural.
+4. Before answering, confirm that every hard rule now holds.
 
 Return exactly this format:
 <rewritten_essay>
