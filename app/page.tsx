@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import type {
   ApiErrorResponse,
   AppStatusResponse,
@@ -35,6 +35,7 @@ export default function HomePage() {
   const [loading, setLoading] = useState(false);
   const [essayExpanded, setEssayExpanded] = useState(false);
   const [resultModalOpen, setResultModalOpen] = useState(false);
+  const modalResultRef = useRef<HTMLTextAreaElement | null>(null);
 
   useEffect(() => {
     async function loadStatus() {
@@ -53,6 +54,13 @@ export default function HomePage() {
 
     void loadStatus();
   }, []);
+
+  useEffect(() => {
+    if (resultModalOpen && modalResultRef.current) {
+      modalResultRef.current.focus();
+      modalResultRef.current.setSelectionRange(0, 0);
+    }
+  }, [resultModalOpen]);
 
   async function handleSubmit(event: React.FormEvent<HTMLFormElement>) {
     event.preventDefault();
@@ -295,7 +303,17 @@ export default function HomePage() {
           aria-label="Humanized essay fullscreen"
           onClick={() => setResultModalOpen(false)}
         >
-          <div className="modal-card" onClick={(event) => event.stopPropagation()}>
+          <div
+            className="modal-card"
+            onClick={(event) => event.stopPropagation()}
+            onKeyDownCapture={(event) => {
+              if ((event.metaKey || event.ctrlKey) && event.key.toLowerCase() === "a") {
+                event.preventDefault();
+                modalResultRef.current?.focus();
+                modalResultRef.current?.select();
+              }
+            }}
+          >
             <div className="modal-header">
               <h3>Humanized essay</h3>
               <button
@@ -313,7 +331,12 @@ export default function HomePage() {
                 </svg>
               </button>
             </div>
-            <textarea className="modal-result-text" value={result.outputText} readOnly />
+            <textarea
+              ref={modalResultRef}
+              className="modal-result-text"
+              value={result.outputText}
+              readOnly
+            />
           </div>
         </div>
       ) : null}

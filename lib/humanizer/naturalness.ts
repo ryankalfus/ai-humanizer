@@ -54,7 +54,10 @@ export function cleanupSurfacePatterns(text: string) {
     .replace(/\bUltimately,\s*/gi, "")
     .replace(/\bIn conclusion,\s*/gi, "")
     .replace(/\bTo summarize,\s*/gi, "")
-    .replace(/\bOverall,\s*/gi, "");
+    .replace(/\bOverall,\s*/gi, "")
+    .replace(/^\s*None provided\s*$/gim, "")
+    .replace(/\n{3,}/g, "\n\n")
+    .trim();
 }
 
 export function scoreNaturalness(text: string) {

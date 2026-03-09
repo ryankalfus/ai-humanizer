@@ -2,7 +2,7 @@ import type { GradeLevel, HumanizeRequest, Tone } from "@/lib/humanizer/types";
 import { countWords, formatGradeLabel, splitParagraphs } from "@/lib/humanizer/text";
 
 function listOrNone(items: string[]) {
-  return items.length ? items.join(", ") : "None provided";
+  return items.join(", ");
 }
 
 function getIntensityProfile(level: number) {
@@ -125,6 +125,12 @@ function buildGuardrailDetails(
   const intensity = getIntensityProfile(request.humanLikeLevel);
   const levelGuidance = getWritingLevelGuidance(request.gradeLevel);
   const toneGuidance = getToneGuidance(request.tone);
+  const protectedTermsRule = request.protectedTerms.length
+    ? `keep these protected words or phrases exactly unchanged: ${listOrNone(request.protectedTerms)}`
+    : "there are no protected words or phrases to preserve, so do not insert any placeholder text or mention that none were provided";
+  const citationsRule = citationPlaceholders.length
+    ? `keep every citation placeholder exactly unchanged: ${listOrNone(citationPlaceholders)}`
+    : "there are no citation placeholders in this essay, so do not insert any placeholder text or mention that none were provided";
 
   return [
     `keep the final essay within +/- ${request.wordDelta} words of the original ${originalWordCount}-word essay`,
@@ -132,8 +138,8 @@ function buildGuardrailDetails(
     `match the requested writing style/tone: ${request.tone}`,
     `match the human-like rewrite strength: ${request.humanLikeLevel}/100 (${intensity.label})`,
     `keep exactly ${paragraphCount} paragraphs`,
-    `keep these protected words or phrases exactly unchanged: ${listOrNone(request.protectedTerms)}`,
-    `keep every citation placeholder exactly unchanged: ${listOrNone(citationPlaceholders)}`,
+    protectedTermsRule,
+    citationsRule,
     `follow this writing-level guidance: ${levelGuidance}`,
     `follow this tone guidance: ${toneGuidance}`,
     `do not use em dashes`,

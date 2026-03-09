@@ -6,7 +6,7 @@ import {
 } from "@/lib/humanizer/citations";
 import { getHumanizerConfig, getHumanizerStatus } from "@/lib/humanizer/config";
 import { HumanizerError } from "@/lib/humanizer/errors";
-import { downgradeOverwrittenWords, scoreNaturalness } from "@/lib/humanizer/naturalness";
+import { cleanupSurfacePatterns, downgradeOverwrittenWords, scoreNaturalness } from "@/lib/humanizer/naturalness";
 import { buildHumanizerPrompt } from "@/lib/humanizer/prompt";
 import {
   countWords,
@@ -92,6 +92,12 @@ describe("naturalness rules", () => {
         "This multifaceted paradigm will utilize a plethora of quintessential examples.",
       ),
     ).toBeLessThan(65);
+  });
+
+  it("removes prompt fallback residue from output cleanup", () => {
+    expect(cleanupSurfacePatterns("First line.\nNone provided\n\nSecond line.")).toBe(
+      "First line.\n\nSecond line.",
+    );
   });
 
   it("checks repeated openers and sentence variety", () => {
@@ -237,5 +243,21 @@ describe("prompt design", () => {
     expect(prompt).toContain("j. Create version (j) using ONLY version (i).");
     expect(prompt).toContain("Do not print steps (a) through (i).");
     expect(prompt).toContain("Output only the final version from step (j)");
+  });
+
+  it("does not tell the model to print None provided when no optional guards exist", () => {
+    const request: HumanizeRequest = {
+      text: "Only one paragraph here.",
+      protectedTerms: [],
+      tone: "formal",
+      gradeLevel: "college",
+      wordDelta: 20,
+      humanLikeLevel: 85,
+    };
+
+    const prompt = buildHumanizerPrompt(request, request.text, [], 1, 7);
+
+    expect(prompt).not.toContain("None provided");
+    expect(prompt).toContain("do not insert any placeholder text or mention that none were provided");
   });
 });
