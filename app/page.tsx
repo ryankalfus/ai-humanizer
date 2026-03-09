@@ -10,10 +10,6 @@ import type {
 } from "@/lib/humanizer/types";
 import { parseProtectedTerms } from "@/lib/humanizer/text";
 
-const defaultEssay = `Artificial intelligence tools have changed how students write, but they have also created new questions about voice and originality. Many essays now sound polished yet repetitive, with smooth transitions and predictable wording. That consistency can make the writing feel less personal, even when the ideas are strong.
-
-Students still need help revising their work in a way that sounds natural and keeps their original points clear. A strong humanizer should not simply swap in random synonyms. Instead, it should keep the same core meaning, preserve citations like (Smith, 2023), and make the writing sound more like a real person with a distinct style.`;
-
 const gradeOptions: Array<{ value: GradeLevel; label: string }> = [
   { value: "middle_school", label: "Middle school" },
   { value: "high_school", label: "High school" },
@@ -28,8 +24,8 @@ const toneOptions: Array<{ value: Tone; label: string }> = [
 ];
 
 export default function HomePage() {
-  const [essay, setEssay] = useState(defaultEssay);
-  const [protectedTermsInput, setProtectedTermsInput] = useState("originality\nthree prongs");
+  const [essay, setEssay] = useState("");
+  const [protectedTermsInput, setProtectedTermsInput] = useState("");
   const [tone, setTone] = useState<Tone>("formal");
   const [gradeLevel, setGradeLevel] = useState<GradeLevel>("college");
   const [wordDelta, setWordDelta] = useState(35);
