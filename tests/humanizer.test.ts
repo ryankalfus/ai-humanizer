@@ -216,10 +216,11 @@ describe("prompt design", () => {
     expect(prompt).toContain("<rewritten_essay>");
     expect(prompt).toContain("<self_check>");
     expect(prompt).toContain("85/100");
-    expect(prompt).toContain("pass 1 of 7");
-    expect(prompt).toContain("Do not use em dashes.");
-    expect(prompt).toContain('Do not use contrast-template phrasing like "not X, but Y"');
-    expect(prompt).toContain('Do not start a sentence with "Ultimately,".');
-    expect(prompt).toContain('Do not write phrases like "The [thing] presents..."');
+    expect(prompt).toContain("Every iteration should STAY CONSISTENT");
+    expect(prompt).toContain("a. Create version (a) from the original essay only.");
+    expect(prompt).toContain("h. Create version (h) using ONLY version (g).");
+    expect(prompt).toContain("i. Now evaluate ONLY version (h) against all user guardrails");
+    expect(prompt).toContain("Do not print steps (a) through (h).");
+    expect(prompt).toContain("Output only the final corrected version from step (i)");
   });
 });
