@@ -44,9 +44,9 @@ function getWritingLevelGuidance(level: GradeLevel) {
     case "high_school":
       return "Use clear, natural vocabulary with moderate sentence variety. Allow some richer phrasing, but keep the wording accessible and avoid jargon or overly academic diction.";
     case "college":
-      return "Use thoughtful, more advanced vocabulary and varied sentence structure, but keep the prose readable, direct, and recognizably human rather than inflated.";
+      return "Use thoughtful, more advanced vocabulary and varied sentence structure. Choose fresher and somewhat less common words when they fit naturally, but keep the prose readable, direct, and recognizably human rather than inflated.";
     case "graduate":
-      return "Use advanced but natural vocabulary with layered syntax, stronger precision, and more nuanced phrasing when needed, without sounding stiff, inflated, or artificial.";
+      return "Use advanced but natural vocabulary with layered syntax, stronger precision, and more nuanced phrasing when needed. Allow more specialized and less common diction when it reads smoothly, without sounding stiff, inflated, or artificial.";
   }
 }
 
@@ -55,7 +55,7 @@ function getToneGuidance(tone: Tone) {
     case "casual":
       return "Keep the tone conversational, direct, and more personal or in-person in feel when that matches the source point of view. Use simpler, more natural phrasing, occasional contractions when they fit, and a voice that sounds spoken rather than stiff, without becoming slangy or careless.";
     case "formal":
-      return "Keep the tone polished, controlled, and more advanced in vocabulary and syntax than casual, while still sounding natural and human rather than corporate or robotic.";
+      return "Keep the tone polished, controlled, and more advanced in vocabulary and syntax than casual. Lean into more precise and somewhat less common diction when it still sounds natural and human rather than corporate or robotic.";
   }
 }
 
@@ -63,7 +63,7 @@ function getLexicalDiversificationGuidance(request: HumanizeRequest) {
   const toneRule =
     request.tone === "casual"
       ? "Keep the vocabulary simpler, more direct, and more spoken in feel. Prefer natural everyday synonyms, light contractions when they fit, and person-to-person phrasing over polished distance."
-      : "Use broader and more advanced vocabulary than casual, but keep it clean and natural. Prefer precise, polished synonyms that a strong human writer would realistically choose, not showy thesaurus words.";
+      : "Use broader and more advanced vocabulary than casual, but keep it clean and natural. Prefer precise, polished synonyms and less common but still believable word choices that a strong human writer would realistically choose, not showy thesaurus words.";
 
   const levelRule = (() => {
     switch (request.gradeLevel) {
@@ -72,17 +72,17 @@ function getLexicalDiversificationGuidance(request: HumanizeRequest) {
       case "high_school":
         return "Use mostly clear, common words with some richer alternatives where they still sound normal and readable.";
       case "college":
-        return "Use more developed vocabulary and fresher word choices, but avoid stiff or inflated diction.";
+        return "Use more developed vocabulary, fresher word choices, and more lexical variety. Favor less common but still natural words over flat generic repeats, while avoiding stiff or inflated diction.";
       case "graduate":
-        return "Use precise and layered vocabulary more often, but still sound like a person rather than a textbook or model output.";
+        return "Use precise and layered vocabulary more often, including less common words when they fit naturally. Keep the voice human and readable rather than textbook-like or model-like.";
     }
   })();
 
   const intensityRule =
     request.humanLikeLevel >= 80
-      ? "Actively diversify verbs, modifiers, and repeated noun phrases. Rephrase whole clauses when a single-word swap would still sound too close to the source."
+      ? "Actively diversify verbs, modifiers, and repeated noun phrases. Rephrase whole clauses when a single-word swap would still sound too close to the source. Replace flat generic wording with more distinctive but still natural alternatives."
       : request.humanLikeLevel >= 45
-        ? "Diversify repeated wording where it improves the prose, especially repeated verbs, transitions, and noun phrases."
+        ? "Diversify repeated wording where it improves the prose, especially repeated verbs, transitions, and noun phrases. Introduce fresher vocabulary when it still matches the requested tone and level."
         : "Keep vocabulary changes more restrained and favor only the clearest natural replacements.";
 
   return `${toneRule} ${levelRule} ${intensityRule}`;
@@ -192,6 +192,7 @@ Boundary rules before generation:
 - Do not lean on filler patterns such as "in today's world", "in today's landscape", "at its core", "from this perspective", or similar generic framing.
 - Do not overuse weak generic verbs such as "shows", "makes", "gives", or "seems" when a clearer context-specific verb would sound more natural.
 - Do not stack too many abstract nouns ending in "-tion", "-ment", "-ness", "-ity", or similar forms when a more concrete rewrite would read better.
+- When the user selected a higher writing level or formal tone, move beyond plain generic wording and choose more precise, less common vocabulary where it still sounds natural in context.
 - Writing-level rule: ${levelGuidance}
 - Style rule: ${toneGuidance}
 - Vocabulary-diversification rule: ${lexicalGuidance}
@@ -226,6 +227,7 @@ Global rules for every iteration:
 16. Make the prose feel rewritten, not lightly polished.
 17. Sentence count may change if needed for a stronger natural rewrite, as long as the paragraph count stays the same.
 18. Do not preserve the source sentence order by default. Keep it only when it is already the most natural arrangement.
+19. For formal, college, and graduate settings, raise the lexical register when it fits naturally. Replace flat common wording with more precise and somewhat less common alternatives, but avoid bizarre thesaurus choices.
 
 Outer pass context:
 - ${outerPassLabel}

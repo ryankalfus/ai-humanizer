@@ -237,6 +237,8 @@ describe("prompt design", () => {
     expect(prompt).toContain("Research-informed guidance:");
     expect(prompt).toContain("Vocabulary-diversification rule:");
     expect(prompt).toContain("Vary verbs first, then modifiers, then repeated noun phrases.");
+    expect(prompt).toContain("less common vocabulary");
+    expect(prompt).toContain("raise the lexical register");
     expect(prompt).toContain("a. Create version (a) from the original essay only.");
     expect(prompt).toContain("h. Create version (h) using ONLY version (g).");
     expect(prompt).toContain("i. Now evaluate ONLY version (h) against all user guardrails");

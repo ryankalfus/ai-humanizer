@@ -211,6 +211,19 @@ export function staysWithinExpectedDiction(target: GradeLevel, output: string) {
   return true;
 }
 
+function getNaturalnessThreshold(target: GradeLevel) {
+  switch (target) {
+    case "middle_school":
+      return 65;
+    case "high_school":
+      return 63;
+    case "college":
+      return 58;
+    case "graduate":
+      return 54;
+  }
+}
+
 export function buildConstraintReport(
   request: HumanizeRequest,
   output: string,
@@ -289,7 +302,7 @@ export function buildConstraintReport(
     report.unmetConstraints.push("The rewrite uses vocabulary that is too advanced for the selected writing level.");
   }
 
-  if (report.naturalnessScore < 65) {
+  if (report.naturalnessScore < getNaturalnessThreshold(request.gradeLevel)) {
     report.unmetConstraints.push("The rewrite sounds too forced or overly thesaurus-heavy.");
   }
 
