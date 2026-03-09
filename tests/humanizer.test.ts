@@ -18,6 +18,10 @@ import {
   splitParagraphs,
 } from "@/lib/humanizer/text";
 import {
+  avoidsAiVocabulary,
+  avoidsContrastTemplates,
+  avoidsEmDashes,
+  avoidsIndirectFraming,
   avoidsRepeatedOpeners,
   buildConstraintReport,
   hasSentenceVariety,
@@ -89,6 +93,22 @@ describe("naturalness rules", () => {
   it("checks repeated openers and sentence variety", () => {
     expect(avoidsRepeatedOpeners("This starts one way. This starts the same way. This repeats again.")).toBe(false);
     expect(hasSentenceVariety("Tiny sentence. This one is much longer and changes the pace clearly. Another short line.")).toBe(true);
+  });
+
+  it("blocks em dashes and contrast-template phrasing", () => {
+    expect(avoidsEmDashes("This line stays simple.")).toBe(true);
+    expect(avoidsEmDashes("This line uses an em dash — which should fail.")).toBe(false);
+    expect(avoidsContrastTemplates("This version feels direct and clear.")).toBe(true);
+    expect(avoidsContrastTemplates("It is not weak, but polished.")).toBe(false);
+    expect(avoidsContrastTemplates("It is not just calm, but sharp.")).toBe(false);
+  });
+
+  it("blocks indirect framing and AI-coded vocabulary", () => {
+    expect(avoidsIndirectFraming("The point comes through clearly.")).toBe(true);
+    expect(avoidsIndirectFraming("Ultimately, the article presents a clear view.")).toBe(false);
+    expect(avoidsIndirectFraming("It is important to note that the point is clear.")).toBe(false);
+    expect(avoidsAiVocabulary("The language stays plain and direct.")).toBe(true);
+    expect(avoidsAiVocabulary("The essay uses nuanced and robust language.")).toBe(false);
   });
 });
 
@@ -197,5 +217,9 @@ describe("prompt design", () => {
     expect(prompt).toContain("<self_check>");
     expect(prompt).toContain("85/100");
     expect(prompt).toContain("pass 1 of 7");
+    expect(prompt).toContain("Do not use em dashes.");
+    expect(prompt).toContain('Do not use contrast-template phrasing like "not X, but Y"');
+    expect(prompt).toContain('Do not start a sentence with "Ultimately,".');
+    expect(prompt).toContain('Do not write phrases like "The [thing] presents..."');
   });
 });

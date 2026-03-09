@@ -59,6 +59,8 @@ Writing goals:
 - Vary sentence openings naturally.
 - Avoid overly uniform sentence lengths.
 - Reduce formulaic transitions and boilerplate phrasing.
+- Prefer concrete verbs and clear actions over abstract, noun-heavy phrasing when possible.
+- Keep the prose direct and specific instead of overly polished or overly generalized.
 - Keep vocabulary aligned with the requested writing level.
 - Prefer simple, context-matching wording over fancy or mismatched synonyms.
 - Do not over-formalize simple ideas.
@@ -77,6 +79,12 @@ Hard rules:
 - Match this writing level: ${formatGradeLabel(request.gradeLevel)}.
 - Preserve the original meaning.
 - Do not add fake facts, fake citations, or new sources.
+- Do not use em dashes.
+- Do not use contrast-template phrasing like "not X, but Y" or "not just X, but Y".
+- Do not start a sentence with "Ultimately,".
+- Do not write phrases like "The [thing] presents..." or "This essay/paper/article presents/explores/examines...".
+- Do not use indirect framing such as "it is important to note", "it can be argued", "it is worth noting", or similar stock lead-ins.
+- Avoid technical, overly academic, or AI-coded vocabulary such as "delve", "underscore", "meticulous", "commendable", "robust", "seamless", "pivotal", "comprehensive", "leverage", "intricate", "realm", "landscape", "nuanced", "transformative", or "paramount".
 
 Rewrite method:
 1. Read the full essay and identify the main meaning of each paragraph.
@@ -126,6 +134,8 @@ Writing goals:
 - Avoid stiff, robotic, or thesaurus-heavy wording.
 - If a sentence still sounds generic or machine-flat, rewrite it more naturally while preserving meaning.
 - Use phrasing changes, clause reshaping, and word changes only where needed.
+- Prefer concrete verbs and plain, direct wording.
+- Remove formulaic contrast constructions if they appear.
 - Human-like rewrite strength is set to ${request.humanLikeLevel}/100 (${intensity.label}).
 - ${intensity.instruction}
 
@@ -137,6 +147,11 @@ Hard rules:
 - Match this tone: ${request.tone}.
 - Match this writing level: ${formatGradeLabel(request.gradeLevel)}.
 - Preserve the original meaning.
+- Do not use em dashes.
+- Do not use contrast-template phrasing like "not X, but Y" or "not just X, but Y".
+- Do not start a sentence with "Ultimately,".
+- Do not use "The [thing] presents..." or indirect stock lead-ins.
+- Do not use technical, overly academic, or AI-coded vocabulary from the banned list above.
 
 Repair method:
 1. Fix only the listed failures first.
@@ -183,6 +198,8 @@ Refinement goals:
 - Vary sentence openings and pacing.
 - Avoid robotic repetition and overly neat symmetry.
 - Replace wording only when the replacement is common, clear, and context-matching.
+- Prefer concrete verbs and fewer abstract filler phrases.
+- Avoid stock contrast patterns and polished-template phrasing.
 - Human-like rewrite strength is set to ${request.humanLikeLevel}/100 (${intensity.label}).
 - ${intensity.instruction}
 
@@ -194,6 +211,11 @@ Hard rules:
 - Match this tone: ${request.tone}.
 - Match this writing level: ${formatGradeLabel(request.gradeLevel)}.
 - Preserve the original meaning.
+- Do not use em dashes.
+- Do not use contrast-template phrasing like "not X, but Y" or "not just X, but Y".
+- Do not start a sentence with "Ultimately,".
+- Do not use "The [thing] presents..." or indirect stock lead-ins.
+- Do not use technical, overly academic, or AI-coded vocabulary from the banned list above.
 
 Current pass:
 - This is pass ${attemptNumber} of ${totalPasses}.
@@ -231,6 +253,8 @@ Final goals:
 - Preserve the strongest phrasing already present.
 - Fix any remaining guardrail problems completely.
 - If needed, rephrase flat or awkward lines without changing the meaning.
+- Prefer concrete verbs, clear actions, and direct phrasing.
+- Remove any remaining contrast-template wording.
 - Human-like rewrite strength is set to ${request.humanLikeLevel}/100 (${intensity.label}).
 - ${intensity.instruction}
 
@@ -246,6 +270,11 @@ Hard rules:
 - Match this writing level: ${formatGradeLabel(request.gradeLevel)}.
 - Preserve the original meaning.
 - Do not add fake facts, fake citations, or new sources.
+- Do not use em dashes.
+- Do not use contrast-template phrasing like "not X, but Y" or "not just X, but Y".
+- Do not start a sentence with "Ultimately,".
+- Do not use "The [thing] presents..." or indirect stock lead-ins.
+- Do not use technical, overly academic, or AI-coded vocabulary from the banned list above.
 
 Final pass method:
 1. Check every hard rule before writing.

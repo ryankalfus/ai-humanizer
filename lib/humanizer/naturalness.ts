@@ -9,10 +9,25 @@ const OVER_ADVANCED_SWAPS: Record<string, string> = {
   elucidate: "explain",
   furthermore: "also",
   henceforth: "from now on",
+  delve: "go into",
+  underscore: "show",
+  meticulous: "careful",
+  commendable: "good",
+  robust: "strong",
+  seamless: "smooth",
+  pivotal: "key",
+  comprehensive: "complete",
+  leverage: "use",
+  intricate: "complex",
+  realm: "area",
+  landscape: "field",
+  nuanced: "subtle",
+  transformative: "major",
+  paramount: "main",
 };
 
 export function downgradeOverwrittenWords(text: string) {
-  let output = text;
+  let output = text.replace(/—/g, ", ");
 
   for (const [hardWord, simplerWord] of Object.entries(OVER_ADVANCED_SWAPS)) {
     const pattern = new RegExp(`\\b${hardWord}\\b`, "gi");

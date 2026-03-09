@@ -29,6 +29,41 @@ const TRANSITION_PATTERNS = [
   "on the other hand",
   "in addition",
   "therefore",
+  "ultimately",
+  "additionally",
+  "consequently",
+  "more specifically",
+];
+
+const BANNED_PHRASE_PATTERNS = [
+  /\bultimately,\b/i,
+  /\bthe\s+[^.!?\n]{0,40}\s+presents\b/i,
+  /\bthis\s+(essay|paper|article|piece|text)\s+(presents|explores|examines|delves into|discusses|highlights)\b/i,
+  /\bit\s+is\s+important\s+to\s+note\b/i,
+  /\bit\s+can\s+be\s+argued\b/i,
+  /\bit\s+is\s+worth\s+noting\b/i,
+  /\bone\s+may\s+say\b/i,
+  /\bone\s+might\s+argue\b/i,
+  /\bthis\s+highlights\b/i,
+  /\bthis\s+underscores\b/i,
+];
+
+const BANNED_AI_VOCABULARY = [
+  "delve",
+  "underscore",
+  "meticulous",
+  "commendable",
+  "robust",
+  "seamless",
+  "pivotal",
+  "comprehensive",
+  "leverage",
+  "intricate",
+  "realm",
+  "landscape",
+  "nuanced",
+  "transformative",
+  "paramount",
 ];
 
 export function citationsPreserved(original: string, output: string) {
@@ -91,6 +126,28 @@ export function avoidsFormulaicTransitions(output: string) {
   return TRANSITION_PATTERNS.every((phrase) => (lower.match(new RegExp(`\\b${escapeRegExp(phrase)}\\b`, "g"))?.length ?? 0) < 2);
 }
 
+export function avoidsEmDashes(output: string) {
+  return !output.includes("—");
+}
+
+export function avoidsContrastTemplates(output: string) {
+  const lower = output.toLowerCase();
+  const broadContrastPattern = /\bnot\b[^.!?\n]{0,80}\bbut\b/;
+  const notJustPattern = /\bnot just\b[^.!?\n]{0,80}\bbut\b/;
+  return !broadContrastPattern.test(lower) && !notJustPattern.test(lower);
+}
+
+export function avoidsIndirectFraming(output: string) {
+  return BANNED_PHRASE_PATTERNS.every((pattern) => !pattern.test(output));
+}
+
+export function avoidsAiVocabulary(output: string) {
+  const lower = output.toLowerCase();
+  return BANNED_AI_VOCABULARY.every(
+    (word) => !(new RegExp(`\\b${escapeRegExp(word)}\\b`, "i").test(lower)),
+  );
+}
+
 export function buildConstraintReport(
   request: HumanizeRequest,
   output: string,
@@ -135,6 +192,22 @@ export function buildConstraintReport(
 
   if (!avoidsFormulaicTransitions(output)) {
     report.unmetConstraints.push("The rewrite leans too hard on formulaic transitions.");
+  }
+
+  if (!avoidsEmDashes(output)) {
+    report.unmetConstraints.push("The rewrite still uses em dashes.");
+  }
+
+  if (!avoidsContrastTemplates(output)) {
+    report.unmetConstraints.push("The rewrite still uses contrast-template phrasing.");
+  }
+
+  if (!avoidsIndirectFraming(output)) {
+    report.unmetConstraints.push("The rewrite still uses indirect framing or stock lead-in phrases.");
+  }
+
+  if (!avoidsAiVocabulary(output)) {
+    report.unmetConstraints.push("The rewrite still uses overly AI-coded or technical stock vocabulary.");
   }
 
   if (report.naturalnessScore < 65) {
