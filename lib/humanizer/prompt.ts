@@ -124,11 +124,17 @@ Boundary rules before generation:
 - Do not write phrases like "The [thing] presents..." or "This essay/paper/article presents/explores/examines...".
 - Do not use indirect framing such as "it is important to note", "it can be argued", "it is worth noting", or similar stock lead-ins.
 - Avoid technical, overly academic, corporate, generic, or AI-coded vocabulary such as "delve", "underscore", "meticulous", "commendable", "robust", "seamless", "pivotal", "comprehensive", "leverage", "intricate", "realm", "landscape", "nuanced", "transformative", or "paramount".
-- Do not use stock AI-style phrasing such as "in today's world", "in today's landscape", "plays a crucial role", "serves as a testament to", "at its core", "navigate the complexities", "a nuanced understanding", or "from this perspective".
+- Do not rely on stock transition openers such as "Furthermore,", "Moreover,", "Additionally,", or "Consequently,".
+- Do not use canned framing such as "This highlights", "This underscores", or "plays a crucial role".
 - Writing-level rule: ${levelGuidance}
 - Style rule: ${toneGuidance}
 - Human-like rewrite strength: ${request.humanLikeLevel}/100 (${intensity.label})
 - Intensity guidance: ${intensity.instruction}
+
+Research-informed guidance:
+- Stylometry research comparing human and AI text finds that human writing tends to show richer stylistic variation, less uniform sentence length, and less repetitive connective scaffolding.
+- Text evaluation work also emphasizes that human writing usually sounds less template-like, less evenly balanced, and more locally varied in syntax and rhythm.
+- Apply that guidance here by varying cadence naturally, reducing repeated transition scaffolds, avoiding overly balanced sentence construction, and favoring concrete, context-appropriate phrasing.
 
 Every iteration should STAY CONSISTENT with the word count range guardrail (+/- ${request.wordDelta}), the writing level (${formatGradeLabel(request.gradeLevel)}), the writing style (${request.tone}), the human-like re-write strength (${request.humanLikeLevel}/100), and all other user parameters.
 
@@ -166,18 +172,18 @@ g. Create version (g) using ONLY version (f). Change the stylistic texture again
 
 h. Create version (h) using ONLY version (g). Perform the strongest final humanizing rewrite pass. Make this the most fully paraphrased version so far while preserving meaning, facts, and user constraints. Replace lingering machine-like phrasing, smooth out awkward spots, and ensure the result reads like an original human rewrite rather than a surface paraphrase. Do not consult any version except (g). (while adhering to user guardrails/rules: ${guardrailDetails})
 
-i. Create version (i) using ONLY version (h). Perform a light cleanup pass that keeps the wording almost identical while smoothing tiny awkward spots, trimming any lingering AI-sounding phrasing, and preserving the same meaning, structure, and voice. This should feel like a close polish, not a major rewrite. Do not consult any version except (h). (while adhering to user guardrails/rules: ${guardrailDetails})
+i. Now evaluate ONLY version (h) against all user guardrails: word count range, writing level, writing style, human-like rewrite strength, banned patterns, and every other user parameter. If version (h) fails any guardrail, rewrite it once so it fully matches while keeping it as close as possible to version (h). Output only the corrected version (i). Do not explain the check unless explicitly asked. (while adhering to user guardrails/rules: ${guardrailDetails})
 
-j. Now evaluate ONLY version (i) against all user guardrails: word count range, writing level, writing style, human-like rewrite strength, banned patterns, and every other user parameter. If version (i) fails any guardrail, rewrite it once so it fully matches while keeping it as close as possible to version (i). Output only the corrected final version. Do not explain the check unless explicitly asked. (while adhering to user guardrails/rules: ${guardrailDetails})
+j. Create version (j) using ONLY version (i). Perform one final research-informed human rewrite/paraphrase pass that stays very close to version (i) while making the flow feel more naturally human. Use the research-informed guidance above: add natural variation in cadence, avoid repeated connective scaffolding, keep sentence movement less mechanically balanced, and favor concrete, context-appropriate phrasing. Also, use some advanced/non-AI-like synonyms replacing some words. This should feel like a final human rewrite, not a new essay. Do not consult any version except (i). Before answering, verify that version (j) still satisfies every user guardrail exactly. (while adhering to user guardrails/rules: ${guardrailDetails})
 
 Return policy:
 - Perform steps (a) through (j) internally.
 - Do not print steps (a) through (i).
-- Output only the final corrected version from step (j) in the required format below.
+- Output only the final version from step (j) in the required format below.
 
 Return exactly this format:
 <rewritten_essay>
-[only the final corrected version from step (j)]
+[only the final version from step (j)]
 </rewritten_essay>
 <self_check>
 {"protectedTermsKept":true,"citationsKept":true,"paragraphCountKept":true,"wordRangeKept":true,"toneMatched":true,"readingLevelMatched":true,"notes":["short note"]}
@@ -200,7 +206,7 @@ export function buildHumanizerPrompt(
     protectedEssay,
     citationPlaceholders,
     `This is outer pass ${attemptNumber} of ${totalPasses}.`,
-    "Focus on producing the strongest full a-through-i rewrite chain from the current source text.",
+    "Focus on producing the strongest full a-through-j rewrite chain from the current source text.",
   );
 }
 
@@ -217,7 +223,7 @@ export function buildRepairPrompt(
     protectedEssay,
     citationPlaceholders,
     `This is outer pass ${attemptNumber} of ${totalPasses}.`,
-    `Prioritize repairing these issues in the final step (i): ${violations.length ? violations.join(" ") : "No explicit violations were passed in, so tighten the guardrails and keep the writing natural."}`,
+    `Prioritize repairing these issues by step (i), then keep step (j) clean and natural: ${violations.length ? violations.join(" ") : "No explicit violations were passed in, so tighten the guardrails and keep the writing natural."}`,
   );
 }
 
@@ -233,7 +239,7 @@ export function buildRefinementPrompt(
     protectedEssay,
     citationPlaceholders,
     `This is outer pass ${attemptNumber} of ${totalPasses}.`,
-    "The current source text is already close. Focus on making the internal a-through-i chain produce a more natural final result without loosening any guardrail.",
+    "The current source text is already close. Focus on making the internal a-through-j chain produce a more natural final result without loosening any guardrail.",
   );
 }
 
@@ -249,6 +255,6 @@ export function buildFinalizationPrompt(
     protectedEssay,
     citationPlaceholders,
     `This is the final outer pass ${totalPasses} of ${totalPasses}.`,
-    `This final pass must lock the best final step (i) result. Any remaining problems to correct: ${violations.length ? violations.join(" ") : "No explicit failures remain; tighten the final output while preserving all rules."}`,
+    `This final pass must lock the best final step (j) result. Any remaining problems to correct before the final human rewrite/paraphrase: ${violations.length ? violations.join(" ") : "No explicit failures remain; tighten the final output while preserving all rules."}`,
   );
 }
