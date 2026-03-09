@@ -23,12 +23,14 @@ import {
   avoidsContrastTemplates,
   avoidsEmDashes,
   avoidsIndirectFraming,
+  hasAcceptableTransitionDensity,
   avoidsRepeatedGenericVerbs,
   avoidsRepeatedOpeners,
   buildConstraintReport,
   hasEnoughParagraphLevelRewriting,
   hasEnoughSentenceLevelRewriting,
   hasEnoughLexicalVariety,
+  hasSufficientBurstiness,
   hasSentenceVariety,
   staysWithinExpectedDiction,
   validateRewrite,
@@ -82,8 +84,12 @@ describe("citation handling", () => {
 
 describe("naturalness rules", () => {
   it("downgrades overly advanced swaps", () => {
-    expect(downgradeOverwrittenWords("We will utilize and elucidate the plan.")).toBe(
-      "We will use and explain the plan.",
+    expect(
+      downgradeOverwrittenWords(
+        "We will utilize, showcase, and illuminate the plan because the tapestry is remarkable.",
+      ),
+    ).toBe(
+      "We will use, show, and clarify the plan because the mix is notable.",
     );
   });
 
@@ -119,8 +125,11 @@ describe("naturalness rules", () => {
     expect(avoidsIndirectFraming("The point comes through clearly.")).toBe(true);
     expect(avoidsIndirectFraming("Ultimately, the article presents a clear view.")).toBe(false);
     expect(avoidsIndirectFraming("It is important to note that the point is clear.")).toBe(false);
+    expect(avoidsIndirectFraming("In a world where change is constant, the essay makes its case.")).toBe(false);
+    expect(avoidsIndirectFraming("The policy became a testament to patient organizing.")).toBe(false);
     expect(avoidsAiVocabulary("The language stays plain and direct.")).toBe(true);
     expect(avoidsAiVocabulary("The essay uses nuanced and robust language.")).toBe(false);
+    expect(avoidsAiVocabulary("The groundbreaking roadmap became a testament to change.")).toBe(false);
   });
 
   it("checks lexical variety, generic verbs, and abstract noun clusters", () => {
@@ -128,6 +137,25 @@ describe("naturalness rules", () => {
     expect(avoidsAbstractNounClusters("The discussion centers on imagination, transformation, and isolation in society.")).toBe(false);
     expect(hasEnoughLexicalVariety("This paragraph repeats the same words again and again. The same words repeat again and again in the same paragraph. The same words keep repeating again and again to show the same repeated pattern. The same words repeat again and again because the paragraph keeps using the same words in the same order, with the same repeated rhythm, and the same repeated pattern showing up again and again.", 90)).toBe(false);
     expect(staysWithinExpectedDiction("middle_school", "The quintessential paradigm will facilitate a multifaceted shift.")).toBe(false);
+  });
+
+  it("checks burstiness and transition density", () => {
+    expect(
+      hasSufficientBurstiness(
+        "Short line. This sentence runs much longer than the first one and clearly changes the pace. Tiny. This is another sentence with a very different length from the one before it. Brief.",
+      ),
+    ).toBe(true);
+    expect(
+      hasSufficientBurstiness(
+        "This sentence stays close in length to the next one. Here is another sentence with nearly the same number of words. The next sentence follows that same steady rhythm again. This sentence also keeps the pace very even. One more sentence lands with almost the same length.",
+      ),
+    ).toBe(false);
+    expect(hasAcceptableTransitionDensity("However the point still lands because the prose stays light.")).toBe(true);
+    expect(
+      hasAcceptableTransitionDensity(
+        "Furthermore moreover additionally consequently therefore however nevertheless nonetheless subsequently accordingly hence thus meanwhile conversely similarly likewise.",
+      ),
+    ).toBe(false);
   });
 
   it("requires stronger rewriting at higher rewrite strengths", () => {
@@ -258,26 +286,37 @@ describe("prompt design", () => {
     expect(prompt).toContain("Model-fingerprint mitigation:");
     expect(prompt).toContain("Entropy injection:");
     expect(prompt).toContain("Controlled imperfection:");
+    expect(prompt).toContain('Avoid these vocabulary verbs: "delve", "underscore", "showcase"');
+    expect(prompt).toContain("FORMAL-REGISTER NATURALNESS OVERRIDES");
+    expect(prompt).toContain("Focused step map for this formal academic high-naturalness case:");
+    expect(prompt).toContain("Sentence length: target a mean of 18-22 words with standard deviation of 8-12 words PER PARAGRAPH.");
     expect(prompt).toContain("coefficient of variation above 0.40");
     expect(prompt).toContain("Transition word density should not exceed 3% of total word count");
     expect(prompt).toContain("Paragraph-level paraphrasing (reshaping how ideas flow within a paragraph as a unit)");
     expect(prompt).toContain("Multi-step rewriting that alternates compression, expansion, reordering, and vocabulary refresh");
+    expect(prompt).toContain("Per-paragraph word budget");
+    expect(prompt).toContain("Paragraph 1: ~2 words");
+    expect(prompt).toContain("Paragraph 2: ~2 words");
+    expect(prompt).toContain("The essay has exactly 2 paragraphs.");
+    expect(prompt).toContain("<p1>[paragraph 1 text]</p1>");
+    expect(prompt).toContain("<p2>[paragraph 2 text]</p2>");
     expect(prompt).toContain("Vary verbs first, then modifiers, then repeated noun phrases.");
     expect(prompt).toContain("less common vocabulary");
     expect(prompt).toContain("raise the lexical register");
     expect(prompt).toContain('do not use "X, Y, and Z" triadic parallel lists more than once per 500 words');
     expect(prompt).toContain("do not create balanced sentence pairs with matching structure and length back-to-back");
     expect(prompt).toContain("ensure high sentence-length variance");
+    expect(prompt).toContain("CRITICAL HARD CONSTRAINT: The final output MUST be between");
     expect(prompt).toContain("a. Create version (a) from the original essay only.");
     expect(prompt).toContain("h. Create version (h) using ONLY version (g).");
-    expect(prompt).toContain("i. Now evaluate ONLY version (h) against all user guardrails");
-    expect(prompt).toContain("j. Create version (j) using ONLY version (i).");
-    expect(prompt).toContain("Rewrite each paragraph as a full unit");
-    expect(prompt).toContain("Treat each paragraph as a mini-structure");
+    expect(prompt).toContain("i. Now evaluate ONLY version (h). GUARDRAIL VERIFICATION PASS:");
+    expect(prompt).toContain("j. Create version (j) using ONLY version (i). FINAL POLISH PASS:");
+    expect(prompt).toContain("Do not start every paragraph with a topic sentence");
+    expect(prompt).toContain('Do not use "From X to Y" overview constructions');
+    expect(prompt).toContain("sentence burstiness, transition density");
+    expect(prompt).toContain("Target a sentence-length mean of 18-22 words and standard deviation of 8-12 words per paragraph.");
     expect(prompt).toContain("For this step, internally draft TWO alternative versions of each paragraph.");
     expect(prompt).toContain("Carry only the selected version forward as version (b).");
-    expect(prompt).toContain("Carry only the selected version forward as version (d).");
-    expect(prompt).toContain("Carry only the selected version forward as version (f).");
     expect(prompt).toContain("Carry only the selected version forward as version (h).");
     expect(prompt).toContain("scan the output for: (1) any run of 3+ sentences with similar word counts");
     expect(prompt).toContain("Do not print steps (a) through (i).");

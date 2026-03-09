@@ -80,8 +80,26 @@ function parseModelResponse(raw: string): GenerationAttempt {
   const essayMatch = raw.match(/<rewritten_essay>\s*([\s\S]*?)\s*<\/rewritten_essay>/i);
   const selfCheckMatch = raw.match(/<self_check>\s*([\s\S]*?)\s*<\/self_check>/i);
 
+  let outputText = "";
+
+  if (essayMatch?.[1]) {
+    const paragraphMatches = essayMatch[1].matchAll(/<p(\d+)>\s*([\s\S]*?)\s*<\/p\1>/gi);
+    const paragraphs = [...paragraphMatches]
+      .sort((left, right) => Number(left[1]) - Number(right[1]))
+      .map((match) => match[2].trim())
+      .filter(Boolean);
+
+    if (paragraphs.length > 0) {
+      outputText = paragraphs.join("\n\n");
+    } else {
+      outputText = essayMatch[1].trim();
+    }
+  } else {
+    outputText = raw.trim();
+  }
+
   return {
-    outputText: essayMatch?.[1]?.trim() || raw.trim(),
+    outputText,
     selfCheck: parseSelfCheck(selfCheckMatch?.[1]),
   };
 }
@@ -207,22 +225,60 @@ export async function humanizeEssay(request: HumanizeRequest): Promise<HumanizeR
             );
 
     const restoredOutput = finalizeOutput(generation.outputText, allProtectedSpans);
-    const validation = validateRewrite(request, restoredOutput);
+    const outputParagraphs = splitParagraphs(restoredOutput);
+    let correctedOutput = restoredOutput;
+
+    if (outputParagraphs.length !== paragraphCountTarget && outputParagraphs.length > paragraphCountTarget) {
+      while (splitParagraphs(correctedOutput).length > paragraphCountTarget) {
+        const parts = splitParagraphs(correctedOutput);
+        let shortestIndex = 0;
+        let shortestLength = Infinity;
+
+        for (let index = 0; index < parts.length; index += 1) {
+          const length = countWords(parts[index]);
+          if (length < shortestLength) {
+            shortestLength = length;
+            shortestIndex = index;
+          }
+        }
+
+        const mergeWith = shortestIndex > 0 ? shortestIndex - 1 : 1;
+        const lowIndex = Math.min(shortestIndex, mergeWith);
+        const mergedParts = [...parts];
+        mergedParts[lowIndex] = `${mergedParts[lowIndex]} ${mergedParts[lowIndex + 1]}`.trim();
+        mergedParts.splice(lowIndex + 1, 1);
+        correctedOutput = mergedParts.join("\n\n");
+      }
+    }
+
+    const finalOutput = correctedOutput;
+    const validation = validateRewrite(request, finalOutput);
+    const wordCountDiff = Math.abs(countWords(finalOutput) - originalWordCount);
+
+    if (wordCountDiff > request.wordDelta * 2) {
+      candidates.push({
+        outputText: finalOutput,
+        selfCheck: generation.selfCheck,
+        validation,
+      });
+
+      continue;
+    }
 
     candidates.push({
-      outputText: restoredOutput,
+      outputText: finalOutput,
       selfCheck: generation.selfCheck,
       validation,
     });
 
     finalCandidate = {
-      outputText: restoredOutput,
+      outputText: finalOutput,
       selfCheck: generation.selfCheck,
       validation,
     };
 
     latestValidation = validation;
-    currentProtectedEssay = applyProtectedSpans(restoredOutput, allProtectedSpans);
+    currentProtectedEssay = applyProtectedSpans(finalOutput, allProtectedSpans);
   }
 
   if (finalCandidate) {

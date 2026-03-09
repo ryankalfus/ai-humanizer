@@ -54,24 +54,74 @@ const BANNED_PHRASE_PATTERNS = [
   /\bnavigate\s+the\s+complexities\b/i,
   /\ba\s+nuanced\s+understanding\b/i,
   /\bfrom\s+this\s+perspective\b/i,
+  /\ba\s+testament\s+to\b/i,
+  /\bthe\s+landscape\s+of\b/i,
+  /\bpaving\s+the\s+way\b/i,
+  /\bharness\s+the\s+power\b/i,
+  /\bgain\s+a\s+comprehensive\b/i,
+  /\bprovide\s+a\s+valuable\s+insight\b/i,
+  /\bleft\s+an\s+indelible\s+mark\b/i,
+  /\bin\s+a\s+world\s+(of|where)\b/i,
 ];
 
 const BANNED_AI_VOCABULARY = [
   "delve",
   "underscore",
-  "meticulous",
+  "showcase",
+  "illuminate",
+  "elucidate",
+  "foster",
+  "harness",
+  "intertwine",
+  "reimagine",
+  "revolutionize",
+  "transcend",
+  "unleash",
+  "unlock",
+  "unravel",
+  "weave",
+  "embark",
+  "craft",
+  "navigate",
+  "leverage",
   "commendable",
+  "meticulous",
+  "multifaceted",
+  "pivotal",
+  "nuanced",
+  "indelible",
+  "invaluable",
+  "groundbreaking",
+  "exemplary",
+  "cutting-edge",
+  "remarkable",
+  "intricate",
   "robust",
   "seamless",
-  "pivotal",
   "comprehensive",
-  "leverage",
-  "intricate",
-  "realm",
-  "landscape",
-  "nuanced",
   "transformative",
   "paramount",
+  "seamlessly",
+  "meticulously",
+  "intricately",
+  "profoundly",
+  "pivotally",
+  "relentlessly",
+  "tirelessly",
+  "vibrantly",
+  "tapestry",
+  "realm",
+  "landscape",
+  "facet",
+  "interplay",
+  "kaleidoscope",
+  "symphony",
+  "testament",
+  "paradigm",
+  "roadmap",
+  "toolkit",
+  "quest",
+  "journey",
 ];
 
 const GENERIC_VERBS = ["shows", "seems", "feels", "gives", "makes", "gets", "does", "says"];
@@ -169,6 +219,21 @@ export function hasSentenceVariety(output: string) {
   return variance >= 8;
 }
 
+export function hasSufficientBurstiness(output: string) {
+  const lengths = getSentenceLengths(output);
+  if (lengths.length < 5) return true;
+
+  const mean = lengths.reduce((sum, value) => sum + value, 0) / lengths.length;
+  if (mean === 0) return true;
+
+  const stdDev = Math.sqrt(
+    lengths.reduce((sum, value) => sum + (value - mean) ** 2, 0) / lengths.length,
+  );
+  const cv = stdDev / mean;
+
+  return cv >= 0.35;
+}
+
 export function avoidsRepeatedOpeners(output: string) {
   const openers = getSentenceOpeners(output);
   const counts = new Map<string, number>();
@@ -183,6 +248,31 @@ export function avoidsRepeatedOpeners(output: string) {
 export function avoidsFormulaicTransitions(output: string) {
   const lower = output.toLowerCase();
   return TRANSITION_PATTERNS.every((phrase) => (lower.match(new RegExp(`\\b${escapeRegExp(phrase)}\\b`, "g"))?.length ?? 0) < 2);
+}
+
+export function hasAcceptableTransitionDensity(output: string) {
+  const words = output.toLowerCase().match(/\b[\w'-]+\b/g) ?? [];
+  const transitionWords = new Set([
+    "furthermore",
+    "moreover",
+    "additionally",
+    "consequently",
+    "therefore",
+    "however",
+    "nevertheless",
+    "nonetheless",
+    "subsequently",
+    "accordingly",
+    "hence",
+    "thus",
+    "meanwhile",
+    "conversely",
+    "similarly",
+    "likewise",
+  ]);
+  const transitionCount = words.filter((word) => transitionWords.has(word)).length;
+
+  return words.length === 0 || transitionCount / words.length < 0.03;
 }
 
 export function avoidsEmDashes(output: string) {
@@ -384,8 +474,16 @@ export function buildConstraintReport(
     report.unmetConstraints.push("Sentence lengths are too uniform.");
   }
 
+  if (!hasSufficientBurstiness(output)) {
+    report.unmetConstraints.push("Sentence lengths are too uniform — need more variation between short and long sentences.");
+  }
+
   if (!avoidsFormulaicTransitions(output)) {
     report.unmetConstraints.push("The rewrite leans too hard on formulaic transitions.");
+  }
+
+  if (!hasAcceptableTransitionDensity(output)) {
+    report.unmetConstraints.push("Too many formal transition words — reduce transition density to feel more natural.");
   }
 
   if (!avoidsEmDashes(output)) {
