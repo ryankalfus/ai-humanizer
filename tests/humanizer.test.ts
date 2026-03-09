@@ -219,8 +219,9 @@ describe("prompt design", () => {
     expect(prompt).toContain("Every iteration should STAY CONSISTENT");
     expect(prompt).toContain("a. Create version (a) from the original essay only.");
     expect(prompt).toContain("h. Create version (h) using ONLY version (g).");
-    expect(prompt).toContain("i. Now evaluate ONLY version (h) against all user guardrails");
-    expect(prompt).toContain("Do not print steps (a) through (h).");
-    expect(prompt).toContain("Output only the final corrected version from step (i)");
+    expect(prompt).toContain("i. Create version (i) using ONLY version (h).");
+    expect(prompt).toContain("j. Now evaluate ONLY version (i) against all user guardrails");
+    expect(prompt).toContain("Do not print steps (a) through (i).");
+    expect(prompt).toContain("Output only the final corrected version from step (j)");
   });
 });

@@ -124,6 +124,7 @@ Boundary rules before generation:
 - Do not write phrases like "The [thing] presents..." or "This essay/paper/article presents/explores/examines...".
 - Do not use indirect framing such as "it is important to note", "it can be argued", "it is worth noting", or similar stock lead-ins.
 - Avoid technical, overly academic, corporate, generic, or AI-coded vocabulary such as "delve", "underscore", "meticulous", "commendable", "robust", "seamless", "pivotal", "comprehensive", "leverage", "intricate", "realm", "landscape", "nuanced", "transformative", or "paramount".
+- Do not use stock AI-style phrasing such as "in today's world", "in today's landscape", "plays a crucial role", "serves as a testament to", "at its core", "navigate the complexities", "a nuanced understanding", or "from this perspective".
 - Writing-level rule: ${levelGuidance}
 - Style rule: ${toneGuidance}
 - Human-like rewrite strength: ${request.humanLikeLevel}/100 (${intensity.label})
@@ -165,16 +166,18 @@ g. Create version (g) using ONLY version (f). Change the stylistic texture again
 
 h. Create version (h) using ONLY version (g). Perform the strongest final humanizing rewrite pass. Make this the most fully paraphrased version so far while preserving meaning, facts, and user constraints. Replace lingering machine-like phrasing, smooth out awkward spots, and ensure the result reads like an original human rewrite rather than a surface paraphrase. Do not consult any version except (g). (while adhering to user guardrails/rules: ${guardrailDetails})
 
-i. Now evaluate ONLY version (h) against all user guardrails: word count range, writing level, writing style, human-like rewrite strength, banned patterns, and every other user parameter. If version (h) fails any guardrail, rewrite it once so it fully matches while keeping it as close as possible to version (h). Output only the corrected final version. Do not explain the check unless explicitly asked. (while adhering to user guardrails/rules: ${guardrailDetails})
+i. Create version (i) using ONLY version (h). Perform a light cleanup pass that keeps the wording almost identical while smoothing tiny awkward spots, trimming any lingering AI-sounding phrasing, and preserving the same meaning, structure, and voice. This should feel like a close polish, not a major rewrite. Do not consult any version except (h). (while adhering to user guardrails/rules: ${guardrailDetails})
+
+j. Now evaluate ONLY version (i) against all user guardrails: word count range, writing level, writing style, human-like rewrite strength, banned patterns, and every other user parameter. If version (i) fails any guardrail, rewrite it once so it fully matches while keeping it as close as possible to version (i). Output only the corrected final version. Do not explain the check unless explicitly asked. (while adhering to user guardrails/rules: ${guardrailDetails})
 
 Return policy:
-- Perform steps (a) through (i) internally.
-- Do not print steps (a) through (h).
-- Output only the final corrected version from step (i) in the required format below.
+- Perform steps (a) through (j) internally.
+- Do not print steps (a) through (i).
+- Output only the final corrected version from step (j) in the required format below.
 
 Return exactly this format:
 <rewritten_essay>
-[only the final corrected version from step (i)]
+[only the final corrected version from step (j)]
 </rewritten_essay>
 <self_check>
 {"protectedTermsKept":true,"citationsKept":true,"paragraphCountKept":true,"wordRangeKept":true,"toneMatched":true,"readingLevelMatched":true,"notes":["short note"]}

@@ -33,10 +33,15 @@ const TRANSITION_PATTERNS = [
   "additionally",
   "consequently",
   "more specifically",
+  "overall",
+  "to summarize",
 ];
 
 const BANNED_PHRASE_PATTERNS = [
   /\bultimately,\b/i,
+  /\bin conclusion,\b/i,
+  /\bto summarize,\b/i,
+  /\boverall,\b/i,
   /\bthe\s+[^.!?\n]{0,40}\s+presents\b/i,
   /\bthis\s+(essay|paper|article|piece|text)\s+(presents|explores|examines|delves into|discusses|highlights)\b/i,
   /\bit\s+is\s+important\s+to\s+note\b/i,
@@ -46,6 +51,13 @@ const BANNED_PHRASE_PATTERNS = [
   /\bone\s+might\s+argue\b/i,
   /\bthis\s+highlights\b/i,
   /\bthis\s+underscores\b/i,
+  /\bin\s+today'?s\s+(world|landscape|society)\b/i,
+  /\bplays?\s+a\s+crucial\s+role\b/i,
+  /\bserves?\s+as\s+a\s+testament\s+to\b/i,
+  /\bat\s+its\s+core\b/i,
+  /\bnavigate\s+the\s+complexities\b/i,
+  /\ba\s+nuanced\s+understanding\b/i,
+  /\bfrom\s+this\s+perspective\b/i,
 ];
 
 const BANNED_AI_VOCABULARY = [
