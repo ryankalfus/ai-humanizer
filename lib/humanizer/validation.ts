@@ -75,6 +75,55 @@ const BANNED_AI_VOCABULARY = [
 ];
 
 const GENERIC_VERBS = ["shows", "seems", "feels", "gives", "makes", "gets", "does", "says"];
+const STOPWORDS = new Set([
+  "a",
+  "an",
+  "and",
+  "are",
+  "as",
+  "at",
+  "be",
+  "but",
+  "by",
+  "for",
+  "from",
+  "has",
+  "have",
+  "in",
+  "is",
+  "it",
+  "of",
+  "on",
+  "or",
+  "that",
+  "the",
+  "their",
+  "this",
+  "to",
+  "was",
+  "were",
+  "will",
+  "with",
+]);
+
+function normalizeComparisonWords(input: string) {
+  return (input.toLowerCase().match(/\b[a-z][a-z'-]*\b/g) ?? []).filter(
+    (word) => !STOPWORDS.has(word),
+  );
+}
+
+function jaccardSimilarity(left: string[], right: string[]) {
+  if (!left.length || !right.length) {
+    return 0;
+  }
+
+  const leftSet = new Set(left);
+  const rightSet = new Set(right);
+  const shared = [...leftSet].filter((word) => rightSet.has(word)).length;
+  const total = new Set([...leftSet, ...rightSet]).size;
+
+  return total ? shared / total : 0;
+}
 
 export function citationsPreserved(original: string, output: string) {
   const citations = extractCitations(original).map((item) => item.original);
@@ -211,6 +260,75 @@ export function staysWithinExpectedDiction(target: GradeLevel, output: string) {
   return true;
 }
 
+export function hasEnoughSentenceLevelRewriting(original: string, output: string, level: number) {
+  if (level < 55) {
+    return true;
+  }
+
+  const originalSentences = original
+    .split(/(?<=[.!?])\s+/g)
+    .map((sentence) => normalizeComparisonWords(sentence))
+    .filter((sentence) => sentence.length >= 4);
+  const outputSentences = output
+    .split(/(?<=[.!?])\s+/g)
+    .map((sentence) => normalizeComparisonWords(sentence))
+    .filter((sentence) => sentence.length >= 4);
+
+  if (!originalSentences.length || !outputSentences.length) {
+    return true;
+  }
+
+  let exactMatches = 0;
+  let highestAverage = 0;
+
+  for (const sentence of outputSentences) {
+    let best = 0;
+
+    for (const sourceSentence of originalSentences) {
+      const similarity = jaccardSimilarity(sentence, sourceSentence);
+      best = Math.max(best, similarity);
+
+      if (similarity === 1) {
+        exactMatches += 1;
+      }
+    }
+
+    highestAverage += best;
+  }
+
+  const averageSimilarity = highestAverage / outputSentences.length;
+
+  if (level >= 85) {
+    return exactMatches === 0 && averageSimilarity < 0.72;
+  }
+
+  if (level >= 70) {
+    return exactMatches === 0 && averageSimilarity < 0.8;
+  }
+
+  return averageSimilarity < 0.86;
+}
+
+export function hasEnoughParagraphLevelRewriting(original: string, output: string, level: number) {
+  if (level < 70) {
+    return true;
+  }
+
+  const originalParagraphs = splitParagraphs(original).map(normalizeComparisonWords);
+  const outputParagraphs = splitParagraphs(output).map(normalizeComparisonWords);
+
+  if (originalParagraphs.length !== outputParagraphs.length || !originalParagraphs.length) {
+    return true;
+  }
+
+  const threshold = level >= 90 ? 0.74 : level >= 80 ? 0.8 : 0.86;
+
+  return outputParagraphs.every((paragraph, index) => {
+    const similarity = jaccardSimilarity(paragraph, originalParagraphs[index] ?? []);
+    return similarity < threshold;
+  });
+}
+
 function getNaturalnessThreshold(target: GradeLevel) {
   switch (target) {
     case "middle_school":
@@ -296,6 +414,14 @@ export function buildConstraintReport(
 
   if (!hasEnoughLexicalVariety(output, request.humanLikeLevel)) {
     report.unmetConstraints.push("The rewrite does not vary its wording enough for the selected rewrite strength.");
+  }
+
+  if (!hasEnoughSentenceLevelRewriting(request.text, output, request.humanLikeLevel)) {
+    report.unmetConstraints.push("Too many sentences still stay too close to the source for the selected rewrite strength.");
+  }
+
+  if (!hasEnoughParagraphLevelRewriting(request.text, output, request.humanLikeLevel)) {
+    report.unmetConstraints.push("The paragraph-level rewrite still mirrors the source too closely for the selected rewrite strength.");
   }
 
   if (!staysWithinExpectedDiction(request.gradeLevel, output)) {

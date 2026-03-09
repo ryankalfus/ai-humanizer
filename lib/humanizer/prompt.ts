@@ -128,6 +128,22 @@ function getLexicalDiversificationGuidance(request: HumanizeRequest) {
   return `${toneRule} ${levelRule} ${intensityRule}`;
 }
 
+function getParagraphLevelGuidance(level: number) {
+  if (level <= 25) {
+    return "Keep paragraph-level change restrained. Lightly improve flow inside each paragraph, but do not force broad discourse reshaping.";
+  }
+
+  if (level <= 55) {
+    return "Rewrite at the paragraph level, not just sentence by sentence. Let each paragraph gain a clearer internal flow and less repetitive scaffolding.";
+  }
+
+  if (level <= 80) {
+    return "Use paragraph-level paraphrasing. Change how ideas move inside each paragraph, vary how sentences connect, and reduce repeated discourse scaffolding instead of only polishing sentences one at a time.";
+  }
+
+  return "Use strong paragraph-level paraphrasing. Rebuild the language of each paragraph as a whole, vary discourse movement inside the paragraph, and avoid leaving original sentence patterns intact when a fuller rewrite is possible.";
+}
+
 function getIterationFocus(step: string, request: HumanizeRequest) {
   const toneFocus =
     request.tone === "casual"
@@ -168,6 +184,7 @@ function buildGuardrailDetails(
   const rewriteDistanceTarget = getRewriteDistanceTarget(request.humanLikeLevel);
   const levelGuidance = getWritingLevelGuidance(request.gradeLevel);
   const toneGuidance = getToneGuidance(request.tone);
+  const paragraphGuidance = getParagraphLevelGuidance(request.humanLikeLevel);
   const protectedTermsRule = request.protectedTerms.length
     ? `keep these protected words or phrases exactly unchanged: ${listOrNone(request.protectedTerms)}`
     : "there are no protected words or phrases to preserve, so do not insert any placeholder text or mention that none were provided";
@@ -185,6 +202,7 @@ function buildGuardrailDetails(
     citationsRule,
     `follow this writing-level guidance: ${levelGuidance}`,
     `follow this tone guidance: ${toneGuidance}`,
+    `follow this paragraph-level rewrite guidance: ${paragraphGuidance}`,
     `do not use em dashes`,
     `do not use formulaic wrap-up phrases such as "Ultimately,", "In conclusion,", "To summarize,", or "Overall," unless they already appear in the source and must be preserved`,
     `do not use contrast-template phrasing such as "not X, but Y", "not just X, but Y", or similar constructions`,
@@ -210,6 +228,7 @@ function buildBasePrompt(
   const levelGuidance = getWritingLevelGuidance(request.gradeLevel);
   const toneGuidance = getToneGuidance(request.tone);
   const lexicalGuidance = getLexicalDiversificationGuidance(request);
+  const paragraphGuidance = getParagraphLevelGuidance(request.humanLikeLevel);
   const guardrailDetails = buildGuardrailDetails(
     request,
     paragraphCount,
@@ -240,6 +259,7 @@ Boundary rules before generation:
 - Writing-level rule: ${levelGuidance}
 - Style rule: ${toneGuidance}
 - Vocabulary-diversification rule: ${lexicalGuidance}
+- Paragraph-level rewrite rule: ${paragraphGuidance}
 - Human-like rewrite strength: ${request.humanLikeLevel}/100 (${intensity.label})
 - Intensity guidance: ${intensity.instruction}
 - Rewrite-distance target: ${rewriteDistanceTarget}
@@ -249,7 +269,9 @@ Research-informed guidance:
 - Text evaluation work also emphasizes that human writing usually sounds less template-like, less evenly balanced, and more locally varied in syntax, rhythm, and clause movement.
 - Human writing also tends to rely more on concrete wording, fewer stacked abstract nouns, fewer polished filler phrases, and less perfectly symmetrical sentence construction.
 - Human writing also tends to vary verbs and repeated noun phrases more than model text that falls back on the same lexical scaffolding.
-- Apply that guidance here by varying cadence naturally, reducing repeated transition scaffolds, mixing clause lengths, avoiding sentence blueprints that repeat, preferring concrete context-appropriate phrasing, rotating repeated word choices, splitting or merging sentences when that helps, and letting sentence-level order change when it improves natural flow.
+- Research on rewrite quality also shows that paragraph-level paraphrasing changes discourse-level patterns more effectively than sentence-only editing.
+- Multi-step rewriting also works better than a one-shot pass because it can alternate compression, expansion, reordering, and lexical refresh while preserving meaning.
+- Apply that guidance here by varying cadence naturally, reducing repeated transition scaffolds, mixing clause lengths, avoiding sentence blueprints that repeat, preferring concrete context-appropriate phrasing, rotating repeated word choices, splitting or merging sentences when that helps, reshaping paragraphs as full units, and letting sentence-level order change when it improves natural flow.
 
 Every iteration should STAY CONSISTENT with the word count range guardrail (+/- ${request.wordDelta}), the writing level (${formatGradeLabel(request.gradeLevel)}), the writing style (${request.tone}), the human-like re-write strength (${request.humanLikeLevel}/100), and all other user parameters.
 
@@ -274,6 +296,8 @@ Global rules for every iteration:
 18. Do not preserve the source sentence order by default. Keep it only when it is already the most natural arrangement.
 19. For formal, college, and graduate settings, raise the lexical register when it fits naturally. Replace flat common wording with more precise and somewhat less common alternatives, but avoid bizarre thesaurus choices.
 20. The higher the rewrite-strength setting, the more the result should differ in wording and sentence construction from the source. At the highest settings, do not settle for a near-copy.
+21. At medium and higher rewrite-strength settings, rewrite paragraphs as full units. Do not treat the task as isolated sentence polishing.
+22. At higher rewrite-strength settings, change how ideas move inside each paragraph by varying transitions, clause order, and local sentence order when it improves flow and still preserves meaning.
 
 Outer pass context:
 - ${outerPassLabel}
@@ -283,7 +307,7 @@ a. Create version (a) from the original essay only. Paraphrase at the micro leve
 
 b. Create version (b) using ONLY version (a). Re-order nearby sentences where helpful, vary sentence openings, and shift the writing style noticeably while preserving natural flow and meaning. Keep the prose more straightforward and plainspoken than version (a), as if simplifying it for clarity. Reshape sentences more boldly than in step (a), rewrite short stretches at the clause level instead of only swapping words, and split or merge sentences if that helps the paragraph sound less templated. You may swap nearby sentences if it improves flow, but do not rearrange whole paragraphs or move sentences when the logic depends on their original order. Do not look back at the original essay or any version before (a). (while adhering to user guardrails/rules: ${guardrailDetails}. iteration-specific focus: ${getIterationFocus("b", request)})
 
-c. Create version (c) using ONLY version (b). Push in the opposite direction from version (b): make the prose more layered and syntactically richer while still sounding human and staying within the same user guardrails. Introduce more variety in cadence, subordination, and phrasing, but do not become ornate, academic, or artificial. Use fuller clause reshaping and vary how ideas are introduced so the text no longer follows the same sentence blueprint. Feel free to rebuild sentence structure from the ground up when the meaning stays intact. Do not consult any version except (b). (while adhering to user guardrails/rules: ${guardrailDetails}. iteration-specific focus: ${getIterationFocus("c", request)})
+c. Create version (c) using ONLY version (b). Push in the opposite direction from version (b): make the prose more layered and syntactically richer while still sounding human and staying within the same user guardrails. Introduce more variety in cadence, subordination, and phrasing, but do not become ornate, academic, or artificial. Use fuller clause reshaping and vary how ideas are introduced so the text no longer follows the same sentence blueprint. Rewrite each paragraph as a full unit rather than polishing sentences in isolation. Feel free to rebuild sentence structure from the ground up when the meaning stays intact. Do not consult any version except (b). (while adhering to user guardrails/rules: ${guardrailDetails}. iteration-specific focus: ${getIterationFocus("c", request)})
 
 d. Create version (d) using ONLY version (c). Compress the prose: shorten where possible, tighten word choice, reduce excess modifiers, and make the writing feel brisker and more direct. Keep all essential meaning and preserve a natural human voice. Replace weak helper-verb phrasing with stronger verbs where possible. Do not consult any version except (c). (while adhering to user guardrails/rules: ${guardrailDetails}. iteration-specific focus: ${getIterationFocus("d", request)})
 
@@ -291,13 +315,13 @@ e. Create version (e) using ONLY version (d). Stretch the prose moderately: add 
 
 f. Create version (f) using ONLY version (e). Rework the wording at the phrase level again, specifically targeting any remaining AI-sounding patterns, generic transitions, neat parallel structures, stacked abstract nouns, or overly balanced sentence construction. This is a vocabulary-heavy pass: rotate repeated verbs, modifiers, and noun phrases more aggressively, prefer fresh but natural synonyms, and rewrite whole clauses when single-word substitution would still feel close to the source. Replace more of the remaining generic vocabulary than in earlier steps. Favor human-typical word choices that fit the required writing level, whether simpler or more advanced per user guardrails. Do not consult any version except (e). (while adhering to user guardrails/rules: ${guardrailDetails}. iteration-specific focus: ${getIterationFocus("f", request)})
 
-g. Create version (g) using ONLY version (f). Change the stylistic texture again by varying rhythm sharply: mix shorter and longer sentences, alter paragraph movement, and make the flow feel less predictable while staying coherent. This pass should sound distinctly rephrased from version (f), not like a light edit. You may swap nearby sentences or shift local clause order if it reads more naturally, but do not rearrange entire paragraphs or disturb meaning-critical order. Use the new order changes to break repeated sentence scaffolding, not just to shuffle words around. If a sentence still sounds too close to the source, rebuild it more fully. Do not consult any version except (f). (while adhering to user guardrails/rules: ${guardrailDetails}. iteration-specific focus: ${getIterationFocus("g", request)})
+g. Create version (g) using ONLY version (f). Change the stylistic texture again by varying rhythm sharply: mix shorter and longer sentences, alter paragraph movement, and make the flow feel less predictable while staying coherent. This pass should sound distinctly rephrased from version (f), not like a light edit. You may swap nearby sentences or shift local clause order if it reads more naturally, but do not rearrange entire paragraphs or disturb meaning-critical order. Use the new order changes to break repeated sentence scaffolding, not just to shuffle words around. Treat each paragraph as a mini-structure with its own flow and vary how the paragraph unfolds. If a sentence still sounds too close to the source, rebuild it more fully. Do not consult any version except (f). (while adhering to user guardrails/rules: ${guardrailDetails}. iteration-specific focus: ${getIterationFocus("g", request)})
 
-h. Create version (h) using ONLY version (g). Perform the strongest final humanizing rewrite pass. Make this the most fully paraphrased version so far while preserving meaning, facts, and user constraints. Replace lingering machine-like phrasing, smooth out awkward spots, and ensure the result reads like an original human rewrite rather than a surface paraphrase. Increase real wording change here: vary phrases, clauses, and sentence shapes more aggressively while still sounding natural. Treat this as a full rewrite of the paragraph language, not a cleanup edit. Do not consult any version except (g). (while adhering to user guardrails/rules: ${guardrailDetails}. iteration-specific focus: ${getIterationFocus("h", request)})
+h. Create version (h) using ONLY version (g). Perform the strongest final humanizing rewrite pass. Make this the most fully paraphrased version so far while preserving meaning, facts, and user constraints. Replace lingering machine-like phrasing, smooth out awkward spots, and ensure the result reads like an original human rewrite rather than a surface paraphrase. Increase real wording change here: vary phrases, clauses, and sentence shapes more aggressively while still sounding natural. Treat this as a full rewrite of the paragraph language and paragraph flow, not a cleanup edit. Do not consult any version except (g). (while adhering to user guardrails/rules: ${guardrailDetails}. iteration-specific focus: ${getIterationFocus("h", request)})
 
 i. Now evaluate ONLY version (h) against all user guardrails: word count range, writing level, writing style, human-like rewrite strength, banned patterns, every other user parameter, and the final vocabulary fit. If version (h) fails any guardrail, rewrite it once so it fully matches while keeping it as close as possible to version (h). Also correct vocabulary mismatches such as wording that is too flat, too inflated, too repetitive, or wrong for the selected tone and writing level. Do not pull the language back toward the source unless a guardrail requires it. Output only the corrected version (i). Do not explain the check unless explicitly asked. (while adhering to user guardrails/rules: ${guardrailDetails}. iteration-specific focus: ${getIterationFocus("i", request)})
 
-j. Create version (j) using ONLY version (i). Perform one final research-informed human rewrite/paraphrase pass that stays faithful to version (i) while still making the final result feel fully rewritten. Use the research-informed guidance above: add natural variation in cadence, avoid repeated connective scaffolding, keep sentence movement less mechanically balanced, vary clause size, favor concrete context-appropriate phrasing, and rotate any remaining repeated words with fresher natural alternatives. Do not use odd or inflated synonyms. Only use vocabulary shifts that fit the required writing level and tone. This should read like a genuinely rephrased final draft, not a lightly edited version. Do not consult any version except (i). Before answering, verify that version (j) still satisfies every user guardrail exactly. (while adhering to user guardrails/rules: ${guardrailDetails}. iteration-specific focus: ${getIterationFocus("j", request)})
+j. Create version (j) using ONLY version (i). Perform one final research-informed human rewrite/paraphrase pass that stays faithful to version (i) while still making the final result feel fully rewritten. Use the research-informed guidance above: add natural variation in cadence, avoid repeated connective scaffolding, keep sentence movement less mechanically balanced, vary clause size, favor concrete context-appropriate phrasing, and rotate any remaining repeated words with fresher natural alternatives. Do not use odd or inflated synonyms. Only use vocabulary shifts that fit the required writing level and tone. This should read like a genuinely rephrased final draft, not a lightly edited version. Re-check each paragraph as a whole so the discourse flow does not mirror the source too closely. Do not consult any version except (i). Before answering, verify that version (j) still satisfies every user guardrail exactly. (while adhering to user guardrails/rules: ${guardrailDetails}. iteration-specific focus: ${getIterationFocus("j", request)})
 
 Return policy:
 - Perform steps (a) through (j) internally.

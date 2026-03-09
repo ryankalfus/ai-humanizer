@@ -26,6 +26,8 @@ import {
   avoidsRepeatedGenericVerbs,
   avoidsRepeatedOpeners,
   buildConstraintReport,
+  hasEnoughParagraphLevelRewriting,
+  hasEnoughSentenceLevelRewriting,
   hasEnoughLexicalVariety,
   hasSentenceVariety,
   staysWithinExpectedDiction,
@@ -126,6 +128,20 @@ describe("naturalness rules", () => {
     expect(avoidsAbstractNounClusters("The discussion centers on imagination, transformation, and isolation in society.")).toBe(false);
     expect(hasEnoughLexicalVariety("This paragraph repeats the same words again and again. The same words repeat again and again in the same paragraph. The same words keep repeating again and again to show the same repeated pattern. The same words repeat again and again because the paragraph keeps using the same words in the same order, with the same repeated rhythm, and the same repeated pattern showing up again and again.", 90)).toBe(false);
     expect(staysWithinExpectedDiction("middle_school", "The quintessential paradigm will facilitate a multifaceted shift.")).toBe(false);
+  });
+
+  it("requires stronger rewriting at higher rewrite strengths", () => {
+    const original =
+      "Students should revise carefully before submitting their essays. Clear writing helps readers follow the main point.\n\nTeachers often value specific examples and strong evidence in each paragraph.";
+    const tooClose =
+      "Students should revise carefully before turning in their essays. Clear writing helps readers follow the main point.\n\nTeachers often value specific examples and strong evidence in each paragraph.";
+    const rewritten =
+      "Before handing in an essay, students should take time to revise it with care. When the writing stays clear, readers can track the main idea without getting lost.\n\nIn most classrooms, teachers respond best when each paragraph uses concrete examples and solid support.";
+
+    expect(hasEnoughSentenceLevelRewriting(original, tooClose, 85)).toBe(false);
+    expect(hasEnoughParagraphLevelRewriting(original, tooClose, 85)).toBe(false);
+    expect(hasEnoughSentenceLevelRewriting(original, rewritten, 85)).toBe(true);
+    expect(hasEnoughParagraphLevelRewriting(original, rewritten, 85)).toBe(true);
   });
 });
 
@@ -236,7 +252,10 @@ describe("prompt design", () => {
     expect(prompt).toContain("Every iteration should STAY CONSISTENT");
     expect(prompt).toContain("Research-informed guidance:");
     expect(prompt).toContain("Vocabulary-diversification rule:");
+    expect(prompt).toContain("Paragraph-level rewrite rule:");
     expect(prompt).toContain("Rewrite-distance target:");
+    expect(prompt).toContain("paragraph-level paraphrasing changes discourse-level patterns");
+    expect(prompt).toContain("Multi-step rewriting also works better than a one-shot pass");
     expect(prompt).toContain("Vary verbs first, then modifiers, then repeated noun phrases.");
     expect(prompt).toContain("less common vocabulary");
     expect(prompt).toContain("raise the lexical register");
@@ -244,6 +263,8 @@ describe("prompt design", () => {
     expect(prompt).toContain("h. Create version (h) using ONLY version (g).");
     expect(prompt).toContain("i. Now evaluate ONLY version (h) against all user guardrails");
     expect(prompt).toContain("j. Create version (j) using ONLY version (i).");
+    expect(prompt).toContain("Rewrite each paragraph as a full unit");
+    expect(prompt).toContain("Treat each paragraph as a mini-structure");
     expect(prompt).toContain("Do not print steps (a) through (i).");
     expect(prompt).toContain("Output only the final version from step (j)");
   });
