@@ -26,6 +26,17 @@ const OVER_ADVANCED_SWAPS: Record<string, string> = {
   paramount: "main",
 };
 
+const FILLER_PHRASES = [
+  "plays a crucial role",
+  "at its core",
+  "in today's world",
+  "in today's landscape",
+  "it is important to note",
+  "it is worth noting",
+  "this highlights",
+  "this underscores",
+];
+
 export function downgradeOverwrittenWords(text: string) {
   let output = text.replace(/—/g, ", ");
 
@@ -47,6 +58,20 @@ export function scoreNaturalness(text: string) {
   const exotics =
     lower.match(/\b(quintessential|multifaceted|paradigm|juxtaposition|aforementioned)\b/g)
       ?.length ?? 0;
+  const fillerCount = FILLER_PHRASES.reduce(
+    (count, phrase) => count + (lower.match(new RegExp(phrase.replace(/[.*+?^${}()|[\]\\]/g, "\\$&"), "g"))?.length ?? 0),
+    0,
+  );
+  const abstractNouns =
+    lower.match(/\b\w+(tion|sion|ment|ness|ity|ism|ship)\b/g)?.length ?? 0;
 
-  return Math.max(0, 100 - overAdvancedCount * 18 - exotics * 12 - Math.max(0, adverbCount - 8) * 2);
+  return Math.max(
+    0,
+    100
+      - overAdvancedCount * 18
+      - exotics * 12
+      - fillerCount * 8
+      - Math.max(0, adverbCount - 8) * 2
+      - Math.max(0, abstractNouns - 10) * 2,
+  );
 }

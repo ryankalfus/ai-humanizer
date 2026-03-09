@@ -1,4 +1,4 @@
-export type Tone = "casual" | "formal" | "academic";
+export type Tone = "casual" | "formal";
 
 export type GradeLevel =
   | "middle_school"

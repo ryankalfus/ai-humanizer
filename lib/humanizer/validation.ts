@@ -33,6 +33,9 @@ const TRANSITION_PATTERNS = [
   "additionally",
   "consequently",
   "more specifically",
+  "in today's world",
+  "in today's landscape",
+  "at its core",
 ];
 
 const BANNED_PHRASE_PATTERNS = [
@@ -46,6 +49,11 @@ const BANNED_PHRASE_PATTERNS = [
   /\bone\s+might\s+argue\b/i,
   /\bthis\s+highlights\b/i,
   /\bthis\s+underscores\b/i,
+  /\bplays\s+a\s+crucial\s+role\b/i,
+  /\bserves\s+as\s+a\s+testament\s+to\b/i,
+  /\bnavigate\s+the\s+complexities\b/i,
+  /\ba\s+nuanced\s+understanding\b/i,
+  /\bfrom\s+this\s+perspective\b/i,
 ];
 
 const BANNED_AI_VOCABULARY = [
@@ -65,6 +73,8 @@ const BANNED_AI_VOCABULARY = [
   "transformative",
   "paramount",
 ];
+
+const GENERIC_VERBS = ["shows", "seems", "feels", "gives", "makes", "gets", "does", "says"];
 
 export function citationsPreserved(original: string, output: string) {
   const citations = extractCitations(original).map((item) => item.original);
@@ -148,6 +158,59 @@ export function avoidsAiVocabulary(output: string) {
   );
 }
 
+export function avoidsRepeatedGenericVerbs(output: string) {
+  const lower = output.toLowerCase();
+  return GENERIC_VERBS.every(
+    (word) => (lower.match(new RegExp(`\\b${escapeRegExp(word)}\\b`, "g"))?.length ?? 0) < 3,
+  );
+}
+
+export function avoidsAbstractNounClusters(output: string) {
+  const words = output.toLowerCase().match(/\b[\w'-]+\b/g) ?? [];
+
+  for (let index = 0; index <= words.length - 6; index += 1) {
+    const window = words.slice(index, index + 6);
+    const abstractCount = window.filter((word) =>
+      /(tion|sion|ment|ness|ity|ism|ship)$/.test(word),
+    ).length;
+
+    if (abstractCount >= 3) {
+      return false;
+    }
+  }
+
+  return true;
+}
+
+export function hasEnoughLexicalVariety(output: string, level: number) {
+  const words = output.toLowerCase().match(/\b[a-z][a-z'-]*\b/g) ?? [];
+
+  if (words.length < 60 || level < 70) {
+    return true;
+  }
+
+  const uniqueRatio = new Set(words).size / words.length;
+  return uniqueRatio >= 0.42;
+}
+
+export function staysWithinExpectedDiction(target: GradeLevel, output: string) {
+  const lower = output.toLowerCase();
+  const advancedTerms =
+    lower.match(
+      /\b(facilitate|ameliorate|juxtaposition|aforementioned|multifaceted|paradigm|quintessential|heretofore|thusly)\b/g,
+    )?.length ?? 0;
+
+  if (target === "middle_school") {
+    return advancedTerms < 2;
+  }
+
+  if (target === "high_school") {
+    return advancedTerms < 4;
+  }
+
+  return true;
+}
+
 export function buildConstraintReport(
   request: HumanizeRequest,
   output: string,
@@ -208,6 +271,22 @@ export function buildConstraintReport(
 
   if (!avoidsAiVocabulary(output)) {
     report.unmetConstraints.push("The rewrite still uses overly AI-coded or technical stock vocabulary.");
+  }
+
+  if (!avoidsRepeatedGenericVerbs(output)) {
+    report.unmetConstraints.push("The rewrite repeats too many generic verbs and weak sentence patterns.");
+  }
+
+  if (!avoidsAbstractNounClusters(output)) {
+    report.unmetConstraints.push("The rewrite still leans on stacked abstract noun clusters.");
+  }
+
+  if (!hasEnoughLexicalVariety(output, request.humanLikeLevel)) {
+    report.unmetConstraints.push("The rewrite does not vary its wording enough for the selected rewrite strength.");
+  }
+
+  if (!staysWithinExpectedDiction(request.gradeLevel, output)) {
+    report.unmetConstraints.push("The rewrite uses vocabulary that is too advanced for the selected writing level.");
   }
 
   if (report.naturalnessScore < 65) {

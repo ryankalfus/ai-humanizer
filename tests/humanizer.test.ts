@@ -19,12 +19,16 @@ import {
 } from "@/lib/humanizer/text";
 import {
   avoidsAiVocabulary,
+  avoidsAbstractNounClusters,
   avoidsContrastTemplates,
   avoidsEmDashes,
   avoidsIndirectFraming,
+  avoidsRepeatedGenericVerbs,
   avoidsRepeatedOpeners,
   buildConstraintReport,
+  hasEnoughLexicalVariety,
   hasSentenceVariety,
+  staysWithinExpectedDiction,
   validateRewrite,
 } from "@/lib/humanizer/validation";
 import type { HumanizeRequest } from "@/lib/humanizer/types";
@@ -109,6 +113,13 @@ describe("naturalness rules", () => {
     expect(avoidsIndirectFraming("It is important to note that the point is clear.")).toBe(false);
     expect(avoidsAiVocabulary("The language stays plain and direct.")).toBe(true);
     expect(avoidsAiVocabulary("The essay uses nuanced and robust language.")).toBe(false);
+  });
+
+  it("checks lexical variety, generic verbs, and abstract noun clusters", () => {
+    expect(avoidsRepeatedGenericVerbs("The story shows a fear that shows in how it shows control.")).toBe(false);
+    expect(avoidsAbstractNounClusters("The discussion centers on imagination, transformation, and isolation in society.")).toBe(false);
+    expect(hasEnoughLexicalVariety("This paragraph repeats the same words again and again. The same words repeat again and again in the same paragraph. The same words keep repeating again and again to show the same repeated pattern. The same words repeat again and again because the paragraph keeps using the same words in the same order, with the same repeated rhythm, and the same repeated pattern showing up again and again.", 90)).toBe(false);
+    expect(staysWithinExpectedDiction("middle_school", "The quintessential paradigm will facilitate a multifaceted shift.")).toBe(false);
   });
 });
 
@@ -203,7 +214,7 @@ describe("prompt design", () => {
     const request: HumanizeRequest = {
       text: "First paragraph.\n\nSecond paragraph.",
       protectedTerms: ["three prongs"],
-      tone: "academic",
+      tone: "formal",
       gradeLevel: "college",
       wordDelta: 20,
       humanLikeLevel: 85,
@@ -218,6 +229,8 @@ describe("prompt design", () => {
     expect(prompt).toContain("85/100");
     expect(prompt).toContain("Every iteration should STAY CONSISTENT");
     expect(prompt).toContain("Research-informed guidance:");
+    expect(prompt).toContain("Vocabulary-diversification rule:");
+    expect(prompt).toContain("Vary verbs first, then modifiers, then repeated noun phrases.");
     expect(prompt).toContain("a. Create version (a) from the original essay only.");
     expect(prompt).toContain("h. Create version (h) using ONLY version (g).");
     expect(prompt).toContain("i. Now evaluate ONLY version (h) against all user guardrails");

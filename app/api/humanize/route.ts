@@ -6,7 +6,7 @@ import type { ApiErrorResponse, GradeLevel, Tone } from "@/lib/humanizer/types";
 const bodySchema = z.object({
   text: z.string().trim().min(1, "Essay text is required."),
   protectedTerms: z.array(z.string().trim()).default([]),
-  tone: z.enum(["casual", "formal", "academic"]),
+  tone: z.enum(["casual", "formal"]),
   gradeLevel: z.enum(["middle_school", "high_school", "college", "graduate"]),
   wordDelta: z.number().int().min(0).max(250),
   humanLikeLevel: z.number().int().min(0).max(100),

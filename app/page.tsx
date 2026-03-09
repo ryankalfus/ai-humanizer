@@ -20,7 +20,6 @@ const gradeOptions: Array<{ value: GradeLevel; label: string }> = [
 const toneOptions: Array<{ value: Tone; label: string }> = [
   { value: "casual", label: "Casual" },
   { value: "formal", label: "Formal" },
-  { value: "academic", label: "Academic" },
 ];
 
 export default function HomePage() {
@@ -35,7 +34,7 @@ export default function HomePage() {
   const [status, setStatus] = useState<AppStatusResponse | null>(null);
   const [loading, setLoading] = useState(false);
   const [essayExpanded, setEssayExpanded] = useState(false);
-  const [resultExpanded, setResultExpanded] = useState(false);
+  const [resultModalOpen, setResultModalOpen] = useState(false);
 
   useEffect(() => {
     async function loadStatus() {
@@ -84,7 +83,7 @@ export default function HomePage() {
       }
 
       setResult(data as HumanizeResponse);
-      setResultExpanded(false);
+      setResultModalOpen(false);
       setStatus((current) =>
         current
           ? {
@@ -104,16 +103,17 @@ export default function HomePage() {
   return (
     <main className="page-shell">
       <section className="hero">
-        <div className="eyebrow">AI-guided rewrite • Guardrail-first</div>
         <h1>Humanize AI Writing</h1>
       </section>
 
       <div className="layout">
         <form className="panel composer" onSubmit={handleSubmit}>
-          <div className="field grow-field">
-            <label htmlFor="essay">Essay</label>
+          <h2>Essay</h2>
+
+          <div className="field grow-field essay-input-field">
             <textarea
               id="essay"
+              aria-label="Essay"
               className={essayExpanded ? "expandable expanded" : "expandable"}
               value={essay}
               onChange={(event) => setEssay(event.target.value)}
@@ -229,10 +229,6 @@ export default function HomePage() {
                   <strong>Output word count</strong>
                   <span>{result.outputWordCount}</span>
                 </div>
-                <div className="stat">
-                  <strong>Estimated reading band</strong>
-                  <span>{result.readabilityBand}</span>
-                </div>
               </div>
 
               <div className="flags">
@@ -266,24 +262,61 @@ export default function HomePage() {
                 <div className="result-header">
                   <h3>Humanized essay</h3>
                   <button
-                    className="text-toggle"
+                    className="icon-toggle"
                     type="button"
-                    onClick={() => setResultExpanded((current) => !current)}
+                    onClick={() => setResultModalOpen(true)}
+                    aria-label="Open result fullscreen"
+                    title="Open result fullscreen"
                   >
-                    {resultExpanded ? "Collapse" : "Expand"}
+                    <svg viewBox="0 0 24 24" aria-hidden="true">
+                      <path
+                        d="M8 3H4a1 1 0 0 0-1 1v4h2V5h3V3Zm13 1a1 1 0 0 0-1-1h-4v2h3v3h2V4ZM5 16H3v4a1 1 0 0 0 1 1h4v-2H5v-3Zm16 0h-2v3h-3v2h4a1 1 0 0 0 1-1v-4Z"
+                        fill="currentColor"
+                      />
+                    </svg>
                   </button>
                 </div>
                 <textarea
-                  className={resultExpanded ? "result-text expanded" : "result-text"}
+                  className="result-text"
                   value={result.outputText}
                   readOnly
-                  onFocus={() => setResultExpanded(true)}
                 />
               </div>
             </>
           ) : null}
         </section>
       </div>
+
+      {resultModalOpen && result ? (
+        <div
+          className="modal-backdrop"
+          role="dialog"
+          aria-modal="true"
+          aria-label="Humanized essay fullscreen"
+          onClick={() => setResultModalOpen(false)}
+        >
+          <div className="modal-card" onClick={(event) => event.stopPropagation()}>
+            <div className="modal-header">
+              <h3>Humanized essay</h3>
+              <button
+                className="icon-toggle"
+                type="button"
+                onClick={() => setResultModalOpen(false)}
+                aria-label="Close fullscreen result"
+                title="Close fullscreen result"
+              >
+                <svg viewBox="0 0 24 24" aria-hidden="true">
+                  <path
+                    d="M6.7 5.3 5.3 6.7 10.6 12l-5.3 5.3 1.4 1.4 5.3-5.3 5.3 5.3 1.4-1.4-5.3-5.3 5.3-5.3-1.4-1.4-5.3 5.3-5.3-5.3Z"
+                    fill="currentColor"
+                  />
+                </svg>
+              </button>
+            </div>
+            <textarea className="modal-result-text" value={result.outputText} readOnly />
+          </div>
+        </div>
+      ) : null}
 
       <footer className="footer-note">
         This tool is intended only for ethical use. It is not intended for academic dishonesty,
