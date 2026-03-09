@@ -69,20 +69,14 @@ export default function HomePage() {
   return (
     <main className="page-shell">
       <section className="hero">
-        <div className="eyebrow">Private local app • AI-guided rewrite • Guardrail-first</div>
-        <h1>Humanize AI writing without losing the structure that matters.</h1>
-        <p>
-          Paste an essay, protect the words that must stay, pick the tone and writing
-          level, and let the app rewrite it with paragraph, citation, and word-count
-          guardrails. Detector scores are a best-effort target only, not a guarantee.
-        </p>
+        <div className="eyebrow">AI-guided rewrite • Guardrail-first</div>
+        <h1>Humanize AI Writing</h1>
       </section>
 
       <div className="layout">
         <form className="panel composer" onSubmit={handleSubmit}>
           <div className="field">
             <label htmlFor="essay">Essay</label>
-            <small>Paste the full essay here. The app will keep the same number of paragraphs.</small>
             <textarea
               id="essay"
               value={essay}
@@ -146,10 +140,6 @@ export default function HomePage() {
           </div>
 
           <div className="submit-row">
-            <p>
-              The rewrite prefers natural paraphrasing over flashy synonym swapping. Citations
-              and protected phrases are checked after generation.
-            </p>
             <button className="button" type="submit" disabled={loading}>
               {loading ? "Humanizing..." : "Humanize essay"}
             </button>
@@ -158,13 +148,6 @@ export default function HomePage() {
 
         <section className="panel results">
           <h2>Result</h2>
-          {!result && !error ? (
-            <div className="card empty-state">
-              Your rewritten essay will appear here with guardrail checks, output stats, and
-              any warnings from the validation pass.
-            </div>
-          ) : null}
-
           {error ? <div className="card empty-state">{error}</div> : null}
 
           {result ? (
