@@ -12,6 +12,7 @@ export interface HumanizeRequest {
   tone: Tone;
   gradeLevel: GradeLevel;
   wordDelta: number;
+  humanLikeLevel: number;
 }
 
 export interface ValidationResult {
@@ -24,6 +25,7 @@ export interface AppliedSettings {
   tone: Tone;
   gradeLevel: GradeLevel;
   wordDelta: number;
+  humanLikeLevel: number;
   paragraphCountTarget: number;
   originalWordCount: number;
 }

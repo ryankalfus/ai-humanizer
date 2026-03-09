@@ -99,6 +99,7 @@ describe("rewrite validation", () => {
     tone: "formal",
     gradeLevel: "high_school",
     wordDelta: 12,
+    humanLikeLevel: 70,
   };
 
   it("accepts a compliant rewrite", () => {
@@ -185,13 +186,16 @@ describe("prompt design", () => {
       tone: "academic",
       gradeLevel: "college",
       wordDelta: 20,
+      humanLikeLevel: 85,
     };
 
-    const prompt = buildHumanizerPrompt(request, request.text, ["__CITATION_0__"]);
+    const prompt = buildHumanizerPrompt(request, request.text, ["__CITATION_0__"], 1, 7);
 
     expect(prompt).toContain("three prongs");
     expect(prompt).toContain("__CITATION_0__");
     expect(prompt).toContain("<rewritten_essay>");
     expect(prompt).toContain("<self_check>");
+    expect(prompt).toContain("85/100");
+    expect(prompt).toContain("pass 1 of 7");
   });
 });

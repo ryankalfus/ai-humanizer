@@ -33,6 +33,7 @@ export default function HomePage() {
   const [tone, setTone] = useState<Tone>("formal");
   const [gradeLevel, setGradeLevel] = useState<GradeLevel>("college");
   const [wordDelta, setWordDelta] = useState(35);
+  const [humanLikeLevel, setHumanLikeLevel] = useState(70);
   const [result, setResult] = useState<HumanizeResponse | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [status, setStatus] = useState<AppStatusResponse | null>(null);
@@ -75,6 +76,7 @@ export default function HomePage() {
           tone,
           gradeLevel,
           wordDelta,
+          humanLikeLevel,
         }),
       });
 
@@ -177,6 +179,22 @@ export default function HomePage() {
                 onChange={(event) => setWordDelta(Number(event.target.value))}
               />
             </div>
+          </div>
+
+          <div className="field">
+            <label htmlFor="humanLikeLevel">Human-like rewrite strength: {humanLikeLevel}</label>
+            <small>
+              Lower values make lighter changes. Higher values push stronger paraphrasing,
+              reordering, and deeper rewriting.
+            </small>
+            <input
+              id="humanLikeLevel"
+              type="range"
+              min={0}
+              max={100}
+              value={humanLikeLevel}
+              onChange={(event) => setHumanLikeLevel(Number(event.target.value))}
+            />
           </div>
 
           <div className="submit-row">

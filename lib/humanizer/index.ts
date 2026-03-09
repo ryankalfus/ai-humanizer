@@ -33,6 +33,7 @@ interface Candidate {
   validation: ValidationResult;
 }
 
+const MIN_ATTEMPTS = 2;
 const MAX_ATTEMPTS = 8;
 
 const defaultSelfCheck: ModelSelfCheck = {
@@ -120,6 +121,10 @@ function buildWarnings(validation: ValidationResult, selfCheck: ModelSelfCheck) 
   return [...new Set([...validation.violations, ...selfCheck.notes])];
 }
 
+function getIterationCount(level: number) {
+  return MIN_ATTEMPTS + Math.round((level / 100) * (MAX_ATTEMPTS - MIN_ATTEMPTS));
+}
+
 export async function humanizeEssay(request: HumanizeRequest): Promise<HumanizeResponse> {
   const citationSpans = extractCitations(request.text);
   const protectedTermSpans = buildProtectedTermSpans(request.protectedTerms);
@@ -127,34 +132,43 @@ export async function humanizeEssay(request: HumanizeRequest): Promise<HumanizeR
   const citationPlaceholders = citationSpans.map((span) => span.placeholder);
   const paragraphCountTarget = splitParagraphs(request.text).length;
   const originalWordCount = countWords(request.text);
+  const iterationCount = getIterationCount(request.humanLikeLevel);
   const candidates: Candidate[] = [];
   let latestValidCandidate: Candidate | null = null;
 
   let currentProtectedEssay = applyProtectedSpans(request.text, allProtectedSpans);
   let latestValidation: ValidationResult | null = null;
 
-  for (let attempt = 0; attempt < MAX_ATTEMPTS; attempt += 1) {
+  for (let attempt = 0; attempt < iterationCount; attempt += 1) {
     const generation =
       attempt === 0
         ? await generateText(
-            buildHumanizerPrompt(request, currentProtectedEssay, citationPlaceholders, attempt + 1),
+            buildHumanizerPrompt(
+              request,
+              currentProtectedEssay,
+              citationPlaceholders,
+              attempt + 1,
+              iterationCount,
+            ),
           )
-        : attempt === MAX_ATTEMPTS - 1
+        : attempt === iterationCount - 1
           ? await generateText(
               buildFinalizationPrompt(
                 request,
                 currentProtectedEssay,
                 citationPlaceholders,
                 latestValidation?.violations ?? [],
+                iterationCount,
               ),
             )
-        : latestValidation?.isValid
+          : latestValidation?.isValid
           ? await generateText(
               buildRefinementPrompt(
                 request,
                 currentProtectedEssay,
                 citationPlaceholders,
                 attempt + 1,
+                iterationCount,
               ),
             )
           : await generateText(
@@ -164,6 +178,7 @@ export async function humanizeEssay(request: HumanizeRequest): Promise<HumanizeR
                 latestValidation?.violations ?? ["The rewrite still needs to follow the hard rules."],
                 citationPlaceholders,
                 attempt + 1,
+                iterationCount,
               ),
             );
 
@@ -204,7 +219,7 @@ export async function humanizeEssay(request: HumanizeRequest): Promise<HumanizeR
         originalWordCount,
       },
       constraintReport,
-      iterationCount: MAX_ATTEMPTS,
+      iterationCount,
       status: "success",
       paragraphCountMatched: constraintReport.paragraphCountMatched,
       citationsPreserved: constraintReport.citationsPreserved,
@@ -232,7 +247,7 @@ export async function humanizeEssay(request: HumanizeRequest): Promise<HumanizeR
       originalWordCount,
     },
     constraintReport,
-    iterationCount: MAX_ATTEMPTS,
+    iterationCount,
     status: "success",
     paragraphCountMatched: constraintReport.paragraphCountMatched,
     citationsPreserved: constraintReport.citationsPreserved,

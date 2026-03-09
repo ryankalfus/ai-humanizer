@@ -5,14 +5,48 @@ function listOrNone(items: string[]) {
   return items.length ? items.join(", ") : "None provided";
 }
 
+function getIntensityProfile(level: number) {
+  if (level <= 25) {
+    return {
+      label: "light",
+      instruction:
+        "Make lighter changes. Prefer subtle rewrites, gentle paraphrasing, and only modest reordering.",
+    };
+  }
+
+  if (level <= 60) {
+    return {
+      label: "balanced",
+      instruction:
+        "Make moderate changes. Use clear paraphrasing, noticeable sentence reshaping, and selective reordering where it improves flow.",
+    };
+  }
+
+  if (level <= 85) {
+    return {
+      label: "strong",
+      instruction:
+        "Make strong changes. Use deeper paraphrasing, broader sentence restructuring, and more meaningful reordering while keeping the same meaning.",
+    };
+  }
+
+  return {
+    label: "very strong",
+    instruction:
+      "Make very strong changes. Use rigorous paraphrasing, assertive restructuring, and substantial reordering while still preserving all hard rules and the original meaning.",
+  };
+}
+
 export function buildHumanizerPrompt(
   request: HumanizeRequest,
   protectedEssay: string,
   citationPlaceholders: string[],
   attemptNumber = 1,
+  totalPasses = 8,
 ) {
   const paragraphCount = splitParagraphs(request.text).length;
   const originalWordCount = countWords(request.text);
+  const intensity = getIntensityProfile(request.humanLikeLevel);
 
   return `
 You are rewriting an essay so it sounds natural, personal, and closer to a real writer's voice while keeping the same meaning.
@@ -31,6 +65,8 @@ Writing goals:
 - Keep the writing smooth and believable, not flashy.
 - Let the prose breathe: some sentences can be short, some can be longer, but they should still feel deliberate.
 - Keep the writer's meaning and emphasis intact even when you rephrase heavily.
+- Human-like rewrite strength is set to ${request.humanLikeLevel}/100 (${intensity.label}).
+- ${intensity.instruction}
 
 Hard rules:
 - Return exactly ${paragraphCount} paragraphs.
@@ -50,7 +86,7 @@ Rewrite method:
 5. Before answering, confirm that every hard rule still holds.
 
 Current pass:
-- This is pass ${attemptNumber} of 8.
+- This is pass ${attemptNumber} of ${totalPasses}.
 - Make the writing feel fresher and less template-like than the previous attempt.
 
 Return exactly this format:
@@ -72,9 +108,11 @@ export function buildRepairPrompt(
   violations: string[],
   citationPlaceholders: string[],
   attemptNumber: number,
+  totalPasses: number,
 ) {
   const paragraphCount = splitParagraphs(request.text).length;
   const originalWordCount = countWords(request.text);
+  const intensity = getIntensityProfile(request.humanLikeLevel);
 
   return `
 Repair this rewritten essay. Only fix the listed problems while keeping the parts that already sound natural.
@@ -88,6 +126,8 @@ Writing goals:
 - Avoid stiff, robotic, or thesaurus-heavy wording.
 - If a sentence still sounds generic or machine-flat, rewrite it more naturally while preserving meaning.
 - Use phrasing changes, clause reshaping, and word changes only where needed.
+- Human-like rewrite strength is set to ${request.humanLikeLevel}/100 (${intensity.label}).
+- ${intensity.instruction}
 
 Hard rules:
 - Return exactly ${paragraphCount} paragraphs.
@@ -105,7 +145,7 @@ Repair method:
 4. Before answering, confirm that every hard rule now holds.
 
 Current pass:
-- This is pass ${attemptNumber} of 8.
+- This is pass ${attemptNumber} of ${totalPasses}.
 - Improve the writing while fixing the listed problems.
 
 Return exactly this format:
@@ -126,9 +166,11 @@ export function buildRefinementPrompt(
   protectedEssay: string,
   citationPlaceholders: string[],
   attemptNumber: number,
+  totalPasses: number,
 ) {
   const paragraphCount = splitParagraphs(request.text).length;
   const originalWordCount = countWords(request.text);
+  const intensity = getIntensityProfile(request.humanLikeLevel);
 
   return `
 Refine this already-valid essay so it sounds even more natural, more varied, and more human in rhythm while keeping every requirement exact.
@@ -141,6 +183,8 @@ Refinement goals:
 - Vary sentence openings and pacing.
 - Avoid robotic repetition and overly neat symmetry.
 - Replace wording only when the replacement is common, clear, and context-matching.
+- Human-like rewrite strength is set to ${request.humanLikeLevel}/100 (${intensity.label}).
+- ${intensity.instruction}
 
 Hard rules:
 - Return exactly ${paragraphCount} paragraphs.
@@ -152,7 +196,7 @@ Hard rules:
 - Preserve the original meaning.
 
 Current pass:
-- This is pass ${attemptNumber} of 8.
+- This is pass ${attemptNumber} of ${totalPasses}.
 - Keep all hard rules fully intact while refining the writing.
 
 Return exactly this format:
@@ -173,9 +217,11 @@ export function buildFinalizationPrompt(
   protectedEssay: string,
   citationPlaceholders: string[],
   violations: string[],
+  totalPasses: number,
 ) {
   const paragraphCount = splitParagraphs(request.text).length;
   const originalWordCount = countWords(request.text);
+  const intensity = getIntensityProfile(request.humanLikeLevel);
 
   return `
 This is the final pass. Produce the strongest final essay while locking every required guardrail.
@@ -185,6 +231,8 @@ Final goals:
 - Preserve the strongest phrasing already present.
 - Fix any remaining guardrail problems completely.
 - If needed, rephrase flat or awkward lines without changing the meaning.
+- Human-like rewrite strength is set to ${request.humanLikeLevel}/100 (${intensity.label}).
+- ${intensity.instruction}
 
 Remaining issues to fix now:
 ${violations.length ? violations.map((item) => `- ${item}`).join("\n") : "- No explicit failures remain; lock the guardrails and polish the flow."}
@@ -204,6 +252,7 @@ Final pass method:
 2. Fix any remaining violations first.
 3. Improve natural flow only where it does not break the rules.
 4. Before answering, verify that every hard rule holds.
+5. This is the final pass ${totalPasses} of ${totalPasses}; prioritize a strong final rewrite that still obeys every rule.
 
 Return exactly this format:
 <rewritten_essay>

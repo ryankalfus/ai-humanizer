@@ -9,6 +9,7 @@ const bodySchema = z.object({
   tone: z.enum(["casual", "formal", "academic"]),
   gradeLevel: z.enum(["middle_school", "high_school", "college", "graduate"]),
   wordDelta: z.number().int().min(0).max(250),
+  humanLikeLevel: z.number().int().min(0).max(100),
 });
 
 export async function POST(request: Request) {
@@ -19,6 +20,7 @@ export async function POST(request: Request) {
       tone: Tone;
       gradeLevel: GradeLevel;
       wordDelta: number;
+      humanLikeLevel: number;
     };
 
     return Response.json(
