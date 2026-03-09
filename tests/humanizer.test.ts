@@ -236,6 +236,7 @@ describe("prompt design", () => {
     expect(prompt).toContain("Every iteration should STAY CONSISTENT");
     expect(prompt).toContain("Research-informed guidance:");
     expect(prompt).toContain("Vocabulary-diversification rule:");
+    expect(prompt).toContain("Rewrite-distance target:");
     expect(prompt).toContain("Vary verbs first, then modifiers, then repeated noun phrases.");
     expect(prompt).toContain("less common vocabulary");
     expect(prompt).toContain("raise the lexical register");
@@ -245,6 +246,46 @@ describe("prompt design", () => {
     expect(prompt).toContain("j. Create version (j) using ONLY version (i).");
     expect(prompt).toContain("Do not print steps (a) through (i).");
     expect(prompt).toContain("Output only the final version from step (j)");
+  });
+
+  it("changes intensity guidance clearly across rewrite-strength settings", () => {
+    const lowPrompt = buildHumanizerPrompt(
+      {
+        text: "One paragraph only.",
+        protectedTerms: [],
+        tone: "formal",
+        gradeLevel: "college",
+        wordDelta: 20,
+        humanLikeLevel: 0,
+      },
+      "One paragraph only.",
+      [],
+      1,
+      2,
+    );
+
+    const highPrompt = buildHumanizerPrompt(
+      {
+        text: "One paragraph only.",
+        protectedTerms: [],
+        tone: "formal",
+        gradeLevel: "college",
+        wordDelta: 20,
+        humanLikeLevel: 100,
+      },
+      "One paragraph only.",
+      [],
+      1,
+      8,
+    );
+
+    expect(lowPrompt).toContain("0/100");
+    expect(lowPrompt).toContain("minimal");
+    expect(lowPrompt).toContain("Keep the rewrite very close to the original.");
+    expect(highPrompt).toContain("100/100");
+    expect(highPrompt).toContain("maximum");
+    expect(highPrompt).toContain("Aim for the maximum rewrite distance");
+    expect(highPrompt).toContain("do not settle for a near-copy");
   });
 
   it("does not tell the model to print None provided when no optional guards exist", () => {

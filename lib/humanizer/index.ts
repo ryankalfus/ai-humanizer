@@ -122,7 +122,31 @@ function buildWarnings(validation: ValidationResult, selfCheck: ModelSelfCheck) 
 }
 
 function getIterationCount(level: number) {
-  return MIN_ATTEMPTS + Math.round((level / 100) * (MAX_ATTEMPTS - MIN_ATTEMPTS));
+  if (level <= 10) {
+    return 2;
+  }
+
+  if (level <= 25) {
+    return 3;
+  }
+
+  if (level <= 40) {
+    return 4;
+  }
+
+  if (level <= 55) {
+    return 5;
+  }
+
+  if (level <= 70) {
+    return 6;
+  }
+
+  if (level <= 85) {
+    return 7;
+  }
+
+  return MAX_ATTEMPTS;
 }
 
 export async function humanizeEssay(request: HumanizeRequest): Promise<HumanizeResponse> {

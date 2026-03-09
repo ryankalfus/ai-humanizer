@@ -6,6 +6,14 @@ function listOrNone(items: string[]) {
 }
 
 function getIntensityProfile(level: number) {
+  if (level <= 10) {
+    return {
+      label: "minimal",
+      instruction:
+        "Make very light changes. Keep the rewrite close to the source, with only limited paraphrasing, light phrase cleanup, and almost no reordering.",
+    };
+  }
+
   if (level <= 25) {
     return {
       label: "light",
@@ -14,15 +22,15 @@ function getIntensityProfile(level: number) {
     };
   }
 
-  if (level <= 60) {
+  if (level <= 45) {
     return {
-      label: "balanced",
+      label: "moderate",
       instruction:
         "Make moderate changes. Use clear paraphrasing, noticeable sentence reshaping, selective reordering where it improves flow, and enough wording change that the prose does not read like a surface edit.",
     };
   }
 
-  if (level <= 85) {
+  if (level <= 70) {
     return {
       label: "strong",
       instruction:
@@ -30,11 +38,43 @@ function getIntensityProfile(level: number) {
     };
   }
 
+  if (level <= 85) {
+    return {
+      label: "very strong",
+      instruction:
+        "Make very strong changes. Use rigorous paraphrasing, assertive restructuring, substantial reordering, sentence splitting and merging, and major vocabulary rotation while still preserving all hard rules and the original meaning.",
+    };
+  }
+
   return {
-    label: "very strong",
+    label: "maximum",
     instruction:
-      "Make very strong changes. Use rigorous paraphrasing, assertive restructuring, substantial reordering, sentence splitting and merging, and major vocabulary rotation while still preserving all hard rules and the original meaning.",
+      "Make maximum changes. Rewrite very aggressively at the phrase, clause, and sentence level. Use deep paraphrasing, strong sentence rebuilding, local order changes, sentence splitting and merging, and major vocabulary rotation so the final result feels fully rewritten while still preserving all hard rules and the original meaning.",
   };
+}
+
+function getRewriteDistanceTarget(level: number) {
+  if (level <= 10) {
+    return "Keep the rewrite very close to the original. Only clean up wording lightly and avoid broad structural change.";
+  }
+
+  if (level <= 25) {
+    return "Keep the rewrite fairly close to the original, but still paraphrase enough that it does not read like a copy edit.";
+  }
+
+  if (level <= 45) {
+    return "Aim for a moderate rewrite distance. Change a noticeable amount of wording and some sentence structure.";
+  }
+
+  if (level <= 70) {
+    return "Aim for a strong rewrite distance. Change a large amount of wording, many phrases, and plenty of sentence structure.";
+  }
+
+  if (level <= 85) {
+    return "Aim for a very strong rewrite distance. The result should feel substantially rephrased across most sentences while preserving meaning.";
+  }
+
+  return "Aim for the maximum rewrite distance allowed by the guardrails. The final result should feel fully rewritten in wording and sentence construction, not lightly edited.";
 }
 
 function getWritingLevelGuidance(level: GradeLevel) {
@@ -97,7 +137,9 @@ function getIterationFocus(step: string, request: HumanizeRequest) {
   const levelFocus = getWritingLevelGuidance(request.gradeLevel);
 
   const intensityFocus =
-    request.humanLikeLevel >= 80
+    request.humanLikeLevel >= 90
+      ? "Push the paraphrasing to the highest level. Rebuild sentence shapes aggressively, split and merge sentences when useful, and change more of the phrasing so the text feels fully rewritten."
+      : request.humanLikeLevel >= 80
       ? "Push the paraphrasing harder and allow bolder sentence reshaping, sentence splitting and merging, and local sentence swaps when they still sound natural."
       : request.humanLikeLevel >= 45
         ? "Use noticeable paraphrasing, selective sentence reshaping, and some sentence splitting or merging, but keep the flow stable."
@@ -123,6 +165,7 @@ function buildGuardrailDetails(
   citationPlaceholders: string[],
 ) {
   const intensity = getIntensityProfile(request.humanLikeLevel);
+  const rewriteDistanceTarget = getRewriteDistanceTarget(request.humanLikeLevel);
   const levelGuidance = getWritingLevelGuidance(request.gradeLevel);
   const toneGuidance = getToneGuidance(request.tone);
   const protectedTermsRule = request.protectedTerms.length
@@ -163,6 +206,7 @@ function buildBasePrompt(
   const paragraphCount = splitParagraphs(request.text).length;
   const originalWordCount = countWords(request.text);
   const intensity = getIntensityProfile(request.humanLikeLevel);
+  const rewriteDistanceTarget = getRewriteDistanceTarget(request.humanLikeLevel);
   const levelGuidance = getWritingLevelGuidance(request.gradeLevel);
   const toneGuidance = getToneGuidance(request.tone);
   const lexicalGuidance = getLexicalDiversificationGuidance(request);
@@ -198,6 +242,7 @@ Boundary rules before generation:
 - Vocabulary-diversification rule: ${lexicalGuidance}
 - Human-like rewrite strength: ${request.humanLikeLevel}/100 (${intensity.label})
 - Intensity guidance: ${intensity.instruction}
+- Rewrite-distance target: ${rewriteDistanceTarget}
 
 Research-informed guidance:
 - Stylometry research comparing human and AI text finds that human writing tends to show richer stylistic variation, less uniform sentence length, less repeated sentence scaffolding, and less predictable transition use.
@@ -228,6 +273,7 @@ Global rules for every iteration:
 17. Sentence count may change if needed for a stronger natural rewrite, as long as the paragraph count stays the same.
 18. Do not preserve the source sentence order by default. Keep it only when it is already the most natural arrangement.
 19. For formal, college, and graduate settings, raise the lexical register when it fits naturally. Replace flat common wording with more precise and somewhat less common alternatives, but avoid bizarre thesaurus choices.
+20. The higher the rewrite-strength setting, the more the result should differ in wording and sentence construction from the source. At the highest settings, do not settle for a near-copy.
 
 Outer pass context:
 - ${outerPassLabel}

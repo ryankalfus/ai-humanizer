@@ -127,9 +127,45 @@ export default function HomePage() {
   }
 
   const displayResult = result;
+  const canSubmit = essay.trim().length > 0 && !loading;
   const statValue = (value?: string | number) => (value ?? "--");
   const flagValue = (matched?: boolean, positive = "Matched") =>
     matched === undefined ? "--" : matched ? positive : "Needs review";
+  const naturalnessTone = (score?: number) => {
+    if (score === undefined) {
+      return "";
+    }
+
+    if (score <= 30) {
+      return "score-red";
+    }
+
+    if (score <= 40) {
+      return "score-dark-yellow";
+    }
+
+    if (score <= 60) {
+      return "score-yellow";
+    }
+
+    if (score <= 80) {
+      return "score-light-green";
+    }
+
+    return "score-dark-green";
+  };
+  const rewriteStrengthLabel =
+    humanLikeLevel <= 10
+      ? "Very light"
+      : humanLikeLevel <= 25
+        ? "Light"
+        : humanLikeLevel <= 45
+          ? "Moderate"
+          : humanLikeLevel <= 70
+            ? "Strong"
+            : humanLikeLevel <= 85
+              ? "Very strong"
+              : "Maximum";
 
   return (
     <main className="page-shell">
@@ -155,8 +191,8 @@ export default function HomePage() {
             />
           </div>
 
-          <div className="field">
-            <label htmlFor="protectedTerms">Words or phrases to keep exactly</label>
+          <div className="field matched-field">
+            <label htmlFor="protectedTerms">Words or phrases to keep</label>
             <textarea
               id="protectedTerms"
               value={protectedTermsInput}
@@ -166,7 +202,7 @@ export default function HomePage() {
           </div>
 
           <div className="control-grid">
-            <div className="field">
+            <div className="field matched-field">
               <label htmlFor="tone">Tone</label>
               <select
                 id="tone"
@@ -181,7 +217,7 @@ export default function HomePage() {
               </select>
             </div>
 
-            <div className="field">
+            <div className="field matched-field">
               <label htmlFor="gradeLevel">Writing level</label>
               <select
                 id="gradeLevel"
@@ -196,7 +232,7 @@ export default function HomePage() {
               </select>
             </div>
 
-            <div className="field">
+            <div className="field matched-field">
               <label htmlFor="wordDelta">Word flexibility</label>
               <input
                 id="wordDelta"
@@ -214,12 +250,10 @@ export default function HomePage() {
             </div>
           </div>
 
-          <div className="field">
-            <label htmlFor="humanLikeLevel">Human-like rewrite strength: {humanLikeLevel}</label>
-            <small>
-              Lower values make lighter changes. Higher values push stronger paraphrasing,
-              reordering, and deeper rewriting.
-            </small>
+          <div className="field matched-field">
+            <label htmlFor="humanLikeLevel">
+              Human-like rewrite strength: {humanLikeLevel}
+            </label>
             <input
               id="humanLikeLevel"
               className="strength-slider"
@@ -233,10 +267,12 @@ export default function HomePage() {
               <span>0</span>
               <span>100</span>
             </div>
+            <div className="slider-mode">{rewriteStrengthLabel}</div>
           </div>
 
           <div className="submit-row">
-            <button className="button" type="submit" disabled={loading}>
+            {loading ? <span className="submit-note">This may take a while.</span> : null}
+            <button className="button" type="submit" disabled={!canSubmit}>
               {loading ? "Humanizing..." : "Humanize essay"}
             </button>
           </div>
@@ -295,11 +331,13 @@ export default function HomePage() {
               </div>
               <div className={`flag ${displayResult ? "good" : ""}`}>
                 <strong>Naturalness score</strong>
-                <span>{displayResult ? `${displayResult.constraintReport.naturalnessScore}/100` : "--"}</span>
+                <span className={naturalnessTone(displayResult?.constraintReport.naturalnessScore)}>
+                  {displayResult ? `${displayResult.constraintReport.naturalnessScore}/100` : "--"}
+                </span>
               </div>
             </div>
 
-            <div className="card">
+            <div className="field matched-field result-output-field">
               <div className="result-header">
                 <h3>Humanized essay</h3>
                 <button
