@@ -28,6 +28,7 @@ export default function HomePage() {
   const [tone, setTone] = useState<Tone>("formal");
   const [gradeLevel, setGradeLevel] = useState<GradeLevel>("college");
   const [wordDelta, setWordDelta] = useState(35);
+  const [wordDeltaInput, setWordDeltaInput] = useState("35");
   const [humanLikeLevel, setHumanLikeLevel] = useState(70);
   const [result, setResult] = useState<HumanizeResponse | null>(null);
   const [error, setError] = useState<string | null>(null);
@@ -62,10 +63,27 @@ export default function HomePage() {
     }
   }, [resultModalOpen]);
 
+  function normalizeWordDelta(rawValue: string) {
+    if (!rawValue.trim()) {
+      return 0;
+    }
+
+    const parsed = Number(rawValue);
+
+    if (!Number.isFinite(parsed)) {
+      return wordDelta;
+    }
+
+    return Math.min(250, Math.max(0, Math.round(parsed)));
+  }
+
   async function handleSubmit(event: React.FormEvent<HTMLFormElement>) {
     event.preventDefault();
     setLoading(true);
     setError(null);
+    const normalizedWordDelta = normalizeWordDelta(wordDeltaInput);
+    setWordDelta(normalizedWordDelta);
+    setWordDeltaInput(String(normalizedWordDelta));
 
     try {
       const response = await fetch("/api/humanize", {
@@ -78,7 +96,7 @@ export default function HomePage() {
           protectedTerms: parseProtectedTerms(protectedTermsInput),
           tone,
           gradeLevel,
-          wordDelta,
+          wordDelta: normalizedWordDelta,
           humanLikeLevel,
         }),
       });
@@ -108,6 +126,11 @@ export default function HomePage() {
     }
   }
 
+  const displayResult = result;
+  const statValue = (value?: string | number) => (value ?? "--");
+  const flagValue = (matched?: boolean, positive = "Matched") =>
+    matched === undefined ? "--" : matched ? positive : "Needs review";
+
   return (
     <main className="page-shell">
       <section className="hero">
@@ -124,6 +147,7 @@ export default function HomePage() {
               aria-label="Essay"
               className={essayExpanded ? "expandable expanded" : "expandable"}
               value={essay}
+              placeholder="Paste your essay here"
               onChange={(event) => setEssay(event.target.value)}
               onFocus={() => setEssayExpanded(true)}
               onBlur={() => setEssayExpanded(false)}
@@ -133,10 +157,10 @@ export default function HomePage() {
 
           <div className="field">
             <label htmlFor="protectedTerms">Words or phrases to keep exactly</label>
-            <small>Use commas or new lines. Example: thesis statement, three prongs, originality.</small>
             <textarea
               id="protectedTerms"
               value={protectedTermsInput}
+              placeholder="Use commas or new lines"
               onChange={(event) => setProtectedTermsInput(event.target.value)}
             />
           </div>
@@ -173,14 +197,19 @@ export default function HomePage() {
             </div>
 
             <div className="field">
-              <label htmlFor="wordDelta">Word flexibility (± words)</label>
+              <label htmlFor="wordDelta">Word flexibility</label>
               <input
                 id="wordDelta"
                 type="number"
                 min={0}
                 max={250}
-                value={wordDelta}
-                onChange={(event) => setWordDelta(Number(event.target.value))}
+                value={wordDeltaInput}
+                onChange={(event) => setWordDeltaInput(event.target.value)}
+                onBlur={() => {
+                  const normalized = normalizeWordDelta(wordDeltaInput);
+                  setWordDelta(normalized);
+                  setWordDeltaInput(String(normalized));
+                }}
               />
             </div>
           </div>
@@ -193,12 +222,17 @@ export default function HomePage() {
             </small>
             <input
               id="humanLikeLevel"
+              className="strength-slider"
               type="range"
               min={0}
               max={100}
               value={humanLikeLevel}
               onChange={(event) => setHumanLikeLevel(Number(event.target.value))}
             />
+            <div className="slider-scale" aria-hidden="true">
+              <span>0</span>
+              <span>100</span>
+            </div>
           </div>
 
           <div className="submit-row">
@@ -226,72 +260,72 @@ export default function HomePage() {
 
           {error ? <div className="card empty-state">{error}</div> : null}
 
-          {result ? (
-            <>
-              <div className="stats">
-                <div className="stat">
-                  <strong>Original word count</strong>
-                  <span>{result.originalWordCount}</span>
-                </div>
-                <div className="stat">
-                  <strong>Output word count</strong>
-                  <span>{result.outputWordCount}</span>
-                </div>
+          <>
+            <div className="stats">
+              <div className="stat">
+                <strong>Original word count</strong>
+                <span>{statValue(displayResult?.originalWordCount)}</span>
               </div>
+              <div className="stat">
+                <strong>Output word count</strong>
+                <span>{statValue(displayResult?.outputWordCount)}</span>
+              </div>
+            </div>
 
-              <div className="flags">
-                <div className={`flag ${result.constraintReport.paragraphCountMatched ? "good" : "warn"}`}>
-                  <strong>Paragraph count</strong>
-                  <span>{result.constraintReport.paragraphCountMatched ? "Matched" : "Needs review"}</span>
-                </div>
-                <div className={`flag ${result.constraintReport.citationsPreserved ? "good" : "warn"}`}>
-                  <strong>Citations</strong>
-                  <span>{result.constraintReport.citationsPreserved ? "Preserved" : "Needs review"}</span>
-                </div>
-                <div className={`flag ${result.constraintReport.protectedTermsPreserved ? "good" : "warn"}`}>
-                  <strong>Protected terms</strong>
-                  <span>{result.constraintReport.protectedTermsPreserved ? "Preserved" : "Needs review"}</span>
-                </div>
-                <div className={`flag ${result.constraintReport.wordRangeMatched ? "good" : "warn"}`}>
-                  <strong>Word range</strong>
-                  <span>{result.constraintReport.wordRangeMatched ? "Matched" : "Needs review"}</span>
-                </div>
-                <div className={`flag ${result.constraintReport.readabilityMatched ? "good" : "warn"}`}>
-                  <strong>Reading level</strong>
-                  <span>{result.constraintReport.readabilityMatched ? "Matched" : "Needs review"}</span>
-                </div>
-                <div className="flag good">
-                  <strong>Naturalness score</strong>
-                  <span>{result.constraintReport.naturalnessScore}/100</span>
-                </div>
+            <div className="flags">
+              <div className={`flag ${displayResult ? (displayResult.constraintReport.paragraphCountMatched ? "good" : "warn") : ""}`}>
+                <strong>Paragraph count</strong>
+                <span>{flagValue(displayResult?.constraintReport.paragraphCountMatched)}</span>
               </div>
+              <div className={`flag ${displayResult ? (displayResult.constraintReport.citationsPreserved ? "good" : "warn") : ""}`}>
+                <strong>Citations</strong>
+                <span>{flagValue(displayResult?.constraintReport.citationsPreserved, "Preserved")}</span>
+              </div>
+              <div className={`flag ${displayResult ? (displayResult.constraintReport.protectedTermsPreserved ? "good" : "warn") : ""}`}>
+                <strong>Protected terms</strong>
+                <span>{flagValue(displayResult?.constraintReport.protectedTermsPreserved, "Preserved")}</span>
+              </div>
+              <div className={`flag ${displayResult ? (displayResult.constraintReport.wordRangeMatched ? "good" : "warn") : ""}`}>
+                <strong>Word range</strong>
+                <span>{flagValue(displayResult?.constraintReport.wordRangeMatched)}</span>
+              </div>
+              <div className={`flag ${displayResult ? (displayResult.constraintReport.readabilityMatched ? "good" : "warn") : ""}`}>
+                <strong>Reading level</strong>
+                <span>{flagValue(displayResult?.constraintReport.readabilityMatched)}</span>
+              </div>
+              <div className={`flag ${displayResult ? "good" : ""}`}>
+                <strong>Naturalness score</strong>
+                <span>{displayResult ? `${displayResult.constraintReport.naturalnessScore}/100` : "--"}</span>
+              </div>
+            </div>
 
-              <div className="card">
-                <div className="result-header">
-                  <h3>Humanized essay</h3>
-                  <button
-                    className="icon-toggle"
-                    type="button"
-                    onClick={() => setResultModalOpen(true)}
-                    aria-label="Open result fullscreen"
-                    title="Open result fullscreen"
-                  >
-                    <svg viewBox="0 0 24 24" aria-hidden="true">
-                      <path
-                        d="M8 3H4a1 1 0 0 0-1 1v4h2V5h3V3Zm13 1a1 1 0 0 0-1-1h-4v2h3v3h2V4ZM5 16H3v4a1 1 0 0 0 1 1h4v-2H5v-3Zm16 0h-2v3h-3v2h4a1 1 0 0 0 1-1v-4Z"
-                        fill="currentColor"
-                      />
-                    </svg>
-                  </button>
-                </div>
-                <textarea
-                  className="result-text"
-                  value={result.outputText}
-                  readOnly
-                />
+            <div className="card">
+              <div className="result-header">
+                <h3>Humanized essay</h3>
+                <button
+                  className="icon-toggle"
+                  type="button"
+                  onClick={() => displayResult && setResultModalOpen(true)}
+                  aria-label="Open result fullscreen"
+                  title="Open result fullscreen"
+                  disabled={!displayResult}
+                >
+                  <svg viewBox="0 0 24 24" aria-hidden="true">
+                    <path
+                      d="M8 3H4a1 1 0 0 0-1 1v4h2V5h3V3Zm13 1a1 1 0 0 0-1-1h-4v2h3v3h2V4ZM5 16H3v4a1 1 0 0 0 1 1h4v-2H5v-3Zm16 0h-2v3h-3v2h4a1 1 0 0 0 1-1v-4Z"
+                      fill="currentColor"
+                    />
+                  </svg>
+                </button>
               </div>
-            </>
-          ) : null}
+              <textarea
+                className="result-text"
+                value={displayResult?.outputText ?? ""}
+                placeholder="Your humanized essay will generate here"
+                readOnly
+              />
+            </div>
+          </>
         </section>
       </div>
 

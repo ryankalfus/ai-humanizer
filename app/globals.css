@@ -126,6 +126,26 @@ textarea {
   color: var(--ink);
 }
 
+.field input[type="range"] {
+  padding: 0;
+  border: 0;
+  background: transparent;
+  border-radius: 0;
+  box-shadow: none;
+}
+
+.strength-slider {
+  margin: 0;
+}
+
+.slider-scale {
+  display: flex;
+  justify-content: space-between;
+  font-size: 0.85rem;
+  color: var(--muted);
+  margin-top: -2px;
+}
+
 .field textarea {
   resize: none;
   min-height: 120px;
