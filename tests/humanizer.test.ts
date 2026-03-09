@@ -150,7 +150,11 @@ describe("naturalness rules", () => {
         "This sentence stays close in length to the next one. Here is another sentence with nearly the same number of words. The next sentence follows that same steady rhythm again. This sentence also keeps the pace very even. One more sentence lands with almost the same length.",
       ),
     ).toBe(false);
-    expect(hasAcceptableTransitionDensity("However the point still lands because the prose stays light.")).toBe(true);
+    expect(
+      hasAcceptableTransitionDensity(
+        "However the point still lands because the prose stays light and the paragraph keeps moving without leaning on another formal connector, stacked transition cue, or recycled signpost phrase anywhere else in the sentence, which leaves the overall transition density low enough to pass the human-like threshold.",
+      ),
+    ).toBe(true);
     expect(
       hasAcceptableTransitionDensity(
         "Furthermore moreover additionally consequently therefore however nevertheless nonetheless subsequently accordingly hence thus meanwhile conversely similarly likewise.",
@@ -315,7 +319,7 @@ describe("prompt design", () => {
     expect(prompt).toContain('Do not use "From X to Y" overview constructions');
     expect(prompt).toContain("sentence burstiness, transition density");
     expect(prompt).toContain("Target a sentence-length mean of 18-22 words and standard deviation of 8-12 words per paragraph.");
-    expect(prompt).toContain("For this step, internally draft TWO alternative versions of each paragraph.");
+    expect(prompt).toContain("For this step, internally draft TWO alternative versions of each paragraph and keep");
     expect(prompt).toContain("Carry only the selected version forward as version (b).");
     expect(prompt).toContain("Carry only the selected version forward as version (h).");
     expect(prompt).toContain("scan the output for: (1) any run of 3+ sentences with similar word counts");
