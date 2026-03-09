@@ -1,14 +1,28 @@
 import { describe, expect, it } from "vitest";
-import { extractCitations, applyProtectedSpans, restoreProtectedSpans } from "@/lib/humanizer/citations";
+import {
+  applyProtectedSpans,
+  extractCitations,
+  restoreProtectedSpans,
+} from "@/lib/humanizer/citations";
+import { getHumanizerConfig, getHumanizerStatus } from "@/lib/humanizer/config";
+import { HumanizerError } from "@/lib/humanizer/errors";
 import { downgradeOverwrittenWords, scoreNaturalness } from "@/lib/humanizer/naturalness";
+import { buildHumanizerPrompt } from "@/lib/humanizer/prompt";
 import {
   countWords,
   estimateGradeBand,
+  getSentenceLengths,
+  getSentenceOpeners,
   joinParagraphs,
   parseProtectedTerms,
   splitParagraphs,
 } from "@/lib/humanizer/text";
-import { validateRewrite } from "@/lib/humanizer/validation";
+import {
+  avoidsRepeatedOpeners,
+  buildConstraintReport,
+  hasSentenceVariety,
+  validateRewrite,
+} from "@/lib/humanizer/validation";
 import type { HumanizeRequest } from "@/lib/humanizer/types";
 
 describe("text helpers", () => {
@@ -33,6 +47,15 @@ describe("text helpers", () => {
     expect(estimateGradeBand("This is a clear sentence. This is another clear sentence.")).toBe(
       "middle_school",
     );
+  });
+
+  it("extracts sentence patterns for naturalness checks", () => {
+    expect(getSentenceOpeners("We start here. They continue there. We change pace.")).toEqual([
+      "we",
+      "they",
+      "we",
+    ]);
+    expect(getSentenceLengths("A short sentence. This one is slightly longer.")).toEqual([3, 5]);
   });
 });
 
@@ -62,6 +85,11 @@ describe("naturalness rules", () => {
       ),
     ).toBeLessThan(65);
   });
+
+  it("checks repeated openers and sentence variety", () => {
+    expect(avoidsRepeatedOpeners("This starts one way. This starts the same way. This repeats again.")).toBe(false);
+    expect(hasSentenceVariety("Tiny sentence. This one is much longer and changes the pace clearly. Another short line.")).toBe(true);
+  });
 });
 
 describe("rewrite validation", () => {
@@ -75,15 +103,25 @@ describe("rewrite validation", () => {
 
   it("accepts a compliant rewrite", () => {
     const output =
-      "Students should revise with care (Smith, 2023).\n\nClear writing helps readers stay focused.";
+      "Students should revise with care (Smith, 2023).\n\nClear writing helps readers stay focused while the message remains easy to follow.";
 
     expect(validateRewrite(request, output)).toEqual({
       isValid: true,
       violations: [],
     });
+
+    expect(buildConstraintReport(request, output)).toEqual({
+      paragraphCountMatched: true,
+      citationsPreserved: true,
+      protectedTermsPreserved: true,
+      wordRangeMatched: true,
+      readabilityMatched: true,
+      naturalnessScore: expect.any(Number),
+      unmetConstraints: [],
+    });
   });
 
-  it("flags paragraph changes, citation changes, protected terms, and word range", () => {
+  it("flags broken constraints", () => {
     const output =
       "Students should revise with care.\nClear prose helps readers.\nA third paragraph appears here.";
     const result = validateRewrite(request, output);
@@ -92,5 +130,68 @@ describe("rewrite validation", () => {
     expect(result.violations).toContain("Paragraph count changed from the original essay.");
     expect(result.violations).toContain("At least one citation was changed or removed.");
     expect(result.violations).toContain("One or more protected words or phrases were changed.");
+  });
+});
+
+describe("config handling", () => {
+  it("returns a structured setup status when OpenAI is missing", () => {
+    const previous = process.env.OPENAI_API_KEY;
+    delete process.env.OPENAI_API_KEY;
+
+    expect(() => getHumanizerConfig()).toThrowError(HumanizerError);
+    expect(getHumanizerStatus()).toEqual({
+      aiConfigured: false,
+      errorCode: "MODEL_NOT_CONFIGURED",
+      setupMessage:
+        "Create .env.local, add OPENAI_API_KEY=..., optionally add OPENAI_MODEL=..., then restart npm run dev.",
+    });
+
+    if (previous) {
+      process.env.OPENAI_API_KEY = previous;
+    }
+  });
+
+  it("returns configured status when the key exists", () => {
+    const previous = process.env.OPENAI_API_KEY;
+    const previousModel = process.env.OPENAI_MODEL;
+
+    process.env.OPENAI_API_KEY = "test-key";
+    process.env.OPENAI_MODEL = "test-model";
+
+    expect(getHumanizerStatus()).toEqual({
+      aiConfigured: true,
+      modelName: "test-model",
+    });
+
+    if (previous) {
+      process.env.OPENAI_API_KEY = previous;
+    } else {
+      delete process.env.OPENAI_API_KEY;
+    }
+
+    if (previousModel) {
+      process.env.OPENAI_MODEL = previousModel;
+    } else {
+      delete process.env.OPENAI_MODEL;
+    }
+  });
+});
+
+describe("prompt design", () => {
+  it("includes all guardrails and response tags", () => {
+    const request: HumanizeRequest = {
+      text: "First paragraph.\n\nSecond paragraph.",
+      protectedTerms: ["three prongs"],
+      tone: "academic",
+      gradeLevel: "college",
+      wordDelta: 20,
+    };
+
+    const prompt = buildHumanizerPrompt(request, request.text, ["__CITATION_0__"]);
+
+    expect(prompt).toContain("three prongs");
+    expect(prompt).toContain("__CITATION_0__");
+    expect(prompt).toContain("<rewritten_essay>");
+    expect(prompt).toContain("<self_check>");
   });
 });

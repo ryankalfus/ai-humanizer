@@ -1,7 +1,13 @@
 "use client";
 
-import { useState } from "react";
-import type { GradeLevel, HumanizeResponse, Tone } from "@/lib/humanizer/types";
+import { useEffect, useState } from "react";
+import type {
+  ApiErrorResponse,
+  AppStatusResponse,
+  GradeLevel,
+  HumanizeResponse,
+  Tone,
+} from "@/lib/humanizer/types";
 import { parseProtectedTerms } from "@/lib/humanizer/text";
 
 const defaultEssay = `Artificial intelligence tools have changed how students write, but they have also created new questions about voice and originality. Many essays now sound polished yet repetitive, with smooth transitions and predictable wording. That consistency can make the writing feel less personal, even when the ideas are strong.
@@ -29,7 +35,28 @@ export default function HomePage() {
   const [wordDelta, setWordDelta] = useState(35);
   const [result, setResult] = useState<HumanizeResponse | null>(null);
   const [error, setError] = useState<string | null>(null);
+  const [status, setStatus] = useState<AppStatusResponse | null>(null);
   const [loading, setLoading] = useState(false);
+  const [essayExpanded, setEssayExpanded] = useState(false);
+  const [resultExpanded, setResultExpanded] = useState(false);
+
+  useEffect(() => {
+    async function loadStatus() {
+      try {
+        const response = await fetch("/api/status");
+        const data = (await response.json()) as AppStatusResponse;
+        setStatus(data);
+      } catch {
+        setStatus({
+          aiConfigured: false,
+          errorCode: "STATUS_UNAVAILABLE",
+          setupMessage: "The app could not verify whether the model is configured.",
+        });
+      }
+    }
+
+    void loadStatus();
+  }, []);
 
   async function handleSubmit(event: React.FormEvent<HTMLFormElement>) {
     event.preventDefault();
@@ -54,10 +81,20 @@ export default function HomePage() {
       const data = await response.json();
 
       if (!response.ok) {
-        throw new Error(data.error || "Failed to humanize essay.");
+        const apiError = data as ApiErrorResponse;
+        throw new Error(apiError.details ? `${apiError.error} ${apiError.details}` : apiError.error);
       }
 
       setResult(data as HumanizeResponse);
+      setResultExpanded(false);
+      setStatus((current) =>
+        current
+          ? {
+              ...current,
+              aiConfigured: true,
+            }
+          : current,
+      );
     } catch (caughtError) {
       setError(caughtError instanceof Error ? caughtError.message : "Unexpected error.");
       setResult(null);
@@ -75,12 +112,15 @@ export default function HomePage() {
 
       <div className="layout">
         <form className="panel composer" onSubmit={handleSubmit}>
-          <div className="field">
+          <div className="field grow-field">
             <label htmlFor="essay">Essay</label>
             <textarea
               id="essay"
+              className={essayExpanded ? "expandable expanded" : "expandable"}
               value={essay}
               onChange={(event) => setEssay(event.target.value)}
+              onFocus={() => setEssayExpanded(true)}
+              onBlur={() => setEssayExpanded(false)}
               minLength={1}
             />
           </div>
@@ -148,10 +188,54 @@ export default function HomePage() {
 
         <section className="panel results">
           <h2>Result</h2>
+
+          {status && !status.aiConfigured ? (
+            <div className="card empty-state">
+              <h3>OpenAI setup needed</h3>
+              <p>{status.setupMessage || "OpenAI is not set up yet."}</p>
+              <ol className="warning-list">
+                <li>Create `.env.local` in this project.</li>
+                <li>Add `OPENAI_API_KEY=your_key_here`.</li>
+                <li>Optional: add `OPENAI_MODEL=gpt-4.1-mini` or your preferred model.</li>
+                <li>Restart `npm run dev`.</li>
+              </ol>
+            </div>
+          ) : null}
+
           {error ? <div className="card empty-state">{error}</div> : null}
 
           {result ? (
             <>
+              <div className="card">
+                <h3>Applied settings</h3>
+                <div className="stats">
+                  <div className="stat">
+                    <strong>Tone</strong>
+                    <span>{result.appliedSettings.tone}</span>
+                  </div>
+                  <div className="stat">
+                    <strong>Writing level</strong>
+                    <span>{result.appliedSettings.gradeLevel}</span>
+                  </div>
+                  <div className="stat">
+                    <strong>Word flexibility</strong>
+                    <span>±{result.appliedSettings.wordDelta}</span>
+                  </div>
+                  <div className="stat">
+                    <strong>Paragraph target</strong>
+                    <span>{result.appliedSettings.paragraphCountTarget}</span>
+                  </div>
+                </div>
+                <div className="field">
+                  <label>Protected words and phrases</label>
+                  <div className="compact-list">
+                    {result.appliedSettings.protectedTerms.length
+                      ? result.appliedSettings.protectedTerms.join(", ")
+                      : "None"}
+                  </div>
+                </div>
+              </div>
+
               <div className="stats">
                 <div className="stat">
                   <strong>Original word count</strong>
@@ -166,45 +250,59 @@ export default function HomePage() {
                   <span>{result.readabilityBand}</span>
                 </div>
                 <div className="stat">
-                  <strong>Naturalness score</strong>
-                  <span>{result.naturalnessScore}/100</span>
+                  <strong>Iterations used</strong>
+                  <span>{result.iterationCount}</span>
                 </div>
               </div>
 
               <div className="flags">
-                <div className={`flag ${result.paragraphCountMatched ? "good" : "warn"}`}>
+                <div className={`flag ${result.constraintReport.paragraphCountMatched ? "good" : "warn"}`}>
                   <strong>Paragraph count</strong>
-                  <span>{result.paragraphCountMatched ? "Matched" : "Needs review"}</span>
+                  <span>{result.constraintReport.paragraphCountMatched ? "Matched" : "Needs review"}</span>
                 </div>
-                <div className={`flag ${result.citationsPreserved ? "good" : "warn"}`}>
+                <div className={`flag ${result.constraintReport.citationsPreserved ? "good" : "warn"}`}>
                   <strong>Citations</strong>
-                  <span>{result.citationsPreserved ? "Preserved" : "Needs review"}</span>
+                  <span>{result.constraintReport.citationsPreserved ? "Preserved" : "Needs review"}</span>
                 </div>
-                <div className={`flag ${result.protectedTermsPreserved ? "good" : "warn"}`}>
+                <div className={`flag ${result.constraintReport.protectedTermsPreserved ? "good" : "warn"}`}>
                   <strong>Protected terms</strong>
-                  <span>{result.protectedTermsPreserved ? "Preserved" : "Needs review"}</span>
+                  <span>{result.constraintReport.protectedTermsPreserved ? "Preserved" : "Needs review"}</span>
+                </div>
+                <div className={`flag ${result.constraintReport.wordRangeMatched ? "good" : "warn"}`}>
+                  <strong>Word range</strong>
+                  <span>{result.constraintReport.wordRangeMatched ? "Matched" : "Needs review"}</span>
+                </div>
+                <div className={`flag ${result.constraintReport.readabilityMatched ? "good" : "warn"}`}>
+                  <strong>Reading level</strong>
+                  <span>{result.constraintReport.readabilityMatched ? "Matched" : "Needs review"}</span>
+                </div>
+                <div className="flag good">
+                  <strong>Naturalness score</strong>
+                  <span>{result.constraintReport.naturalnessScore}/100</span>
                 </div>
               </div>
 
-              {result.warnings.length ? (
-                <div className="card">
-                  <h3>Warnings</h3>
-                  <ul className="warning-list">
-                    {result.warnings.map((warning) => (
-                      <li key={warning}>{warning}</li>
-                    ))}
-                  </ul>
-                </div>
-              ) : null}
-
               <div className="card">
                 <h3>Humanized essay</h3>
-                <div className="essay-output">{result.outputText}</div>
+                <button
+                  className="essay-view"
+                  type="button"
+                  onClick={() => setResultExpanded((current) => !current)}
+                >
+                  <div className={resultExpanded ? "essay-output expanded" : "essay-output"}>
+                    {result.outputText}
+                  </div>
+                </button>
               </div>
             </>
           ) : null}
         </section>
       </div>
+
+      <footer className="footer-note">
+        This tool is intended only for ethical use. It is not intended for academic dishonesty,
+        fraud, or other unethical contexts.
+      </footer>
     </main>
   );
 }
