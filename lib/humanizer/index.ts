@@ -8,6 +8,7 @@ import { downgradeOverwrittenWords } from "@/lib/humanizer/naturalness";
 import { HumanizerError } from "@/lib/humanizer/errors";
 import { getModelName, getOpenAIClient } from "@/lib/humanizer/openai";
 import {
+  buildFinalizationPrompt,
   buildHumanizerPrompt,
   buildRefinementPrompt,
   buildRepairPrompt,
@@ -138,6 +139,15 @@ export async function humanizeEssay(request: HumanizeRequest): Promise<HumanizeR
         ? await generateText(
             buildHumanizerPrompt(request, currentProtectedEssay, citationPlaceholders, attempt + 1),
           )
+        : attempt === MAX_ATTEMPTS - 1
+          ? await generateText(
+              buildFinalizationPrompt(
+                request,
+                currentProtectedEssay,
+                citationPlaceholders,
+                latestValidation?.violations ?? [],
+              ),
+            )
         : latestValidation?.isValid
           ? await generateText(
               buildRefinementPrompt(
@@ -207,10 +217,29 @@ export async function humanizeEssay(request: HumanizeRequest): Promise<HumanizeR
   }
 
   const bestCandidate = chooseBestCandidate(candidates);
+  const constraintReport = buildConstraintReport(request, bestCandidate.outputText);
 
-  throw new HumanizerError(
-    "The app could not produce a rewrite that kept every required guardrail. Try loosening the word range or simplifying the protected terms list.",
-    "CONSTRAINTS_NOT_MET",
-    bestCandidate.validation.violations.join(" "),
-  );
+  return {
+    outputText: bestCandidate.outputText,
+    originalWordCount,
+    outputWordCount: countWords(bestCandidate.outputText),
+    appliedSettings: {
+      protectedTerms: request.protectedTerms,
+      tone: request.tone,
+      gradeLevel: request.gradeLevel,
+      wordDelta: request.wordDelta,
+      paragraphCountTarget,
+      originalWordCount,
+    },
+    constraintReport,
+    iterationCount: MAX_ATTEMPTS,
+    status: "success",
+    paragraphCountMatched: constraintReport.paragraphCountMatched,
+    citationsPreserved: constraintReport.citationsPreserved,
+    protectedTermsPreserved: constraintReport.protectedTermsPreserved,
+    warnings: buildWarnings(bestCandidate.validation, bestCandidate.selfCheck),
+    validation: bestCandidate.validation,
+    readabilityBand: estimateGradeBand(bestCandidate.outputText),
+    naturalnessScore: constraintReport.naturalnessScore,
+  };
 }

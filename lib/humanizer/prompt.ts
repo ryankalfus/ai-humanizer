@@ -167,3 +167,53 @@ Essay to refine:
 ${protectedEssay}
 `.trim();
 }
+
+export function buildFinalizationPrompt(
+  request: HumanizeRequest,
+  protectedEssay: string,
+  citationPlaceholders: string[],
+  violations: string[],
+) {
+  const paragraphCount = splitParagraphs(request.text).length;
+  const originalWordCount = countWords(request.text);
+
+  return `
+This is the final pass. Produce the strongest final essay while locking every required guardrail.
+
+Final goals:
+- Keep the writing natural, smooth, and believable.
+- Preserve the strongest phrasing already present.
+- Fix any remaining guardrail problems completely.
+- If needed, rephrase flat or awkward lines without changing the meaning.
+
+Remaining issues to fix now:
+${violations.length ? violations.map((item) => `- ${item}`).join("\n") : "- No explicit failures remain; lock the guardrails and polish the flow."}
+
+Hard rules:
+- Return exactly ${paragraphCount} paragraphs.
+- Keep every citation placeholder exactly as written: ${listOrNone(citationPlaceholders)}.
+- Keep these protected words or phrases exactly unchanged: ${listOrNone(request.protectedTerms)}.
+- Keep the final essay within +/- ${request.wordDelta} words of ${originalWordCount} words.
+- Match this tone: ${request.tone}.
+- Match this writing level: ${formatGradeLabel(request.gradeLevel)}.
+- Preserve the original meaning.
+- Do not add fake facts, fake citations, or new sources.
+
+Final pass method:
+1. Check every hard rule before writing.
+2. Fix any remaining violations first.
+3. Improve natural flow only where it does not break the rules.
+4. Before answering, verify that every hard rule holds.
+
+Return exactly this format:
+<rewritten_essay>
+[the final essay only]
+</rewritten_essay>
+<self_check>
+{"protectedTermsKept":true,"citationsKept":true,"paragraphCountKept":true,"wordRangeKept":true,"toneMatched":true,"readingLevelMatched":true,"notes":["short note"]}
+</self_check>
+
+Essay to finalize:
+${protectedEssay}
+`.trim();
+}
