@@ -272,8 +272,23 @@ export default function HomePage() {
 
           <div className="submit-row">
             {loading ? <span className="submit-note">This may take a while.</span> : null}
-            <button className="button" type="submit" disabled={!canSubmit}>
-              {loading ? "Humanizing..." : "Humanize essay"}
+            <button
+              className={`button${loading ? " is-loading" : ""}`}
+              type="submit"
+              disabled={!canSubmit}
+            >
+              {loading ? (
+                <span className="button-loading-text">
+                  Humanizing
+                  <span className="loading-dots" aria-hidden="true">
+                    <span>.</span>
+                    <span>.</span>
+                    <span>.</span>
+                  </span>
+                </span>
+              ) : (
+                "Humanize essay"
+              )}
             </button>
           </div>
         </form>
