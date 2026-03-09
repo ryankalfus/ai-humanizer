@@ -300,6 +300,36 @@ describe("prompt design", () => {
       2,
     );
 
+    const strongPrompt = buildHumanizerPrompt(
+      {
+        text: "One paragraph only.",
+        protectedTerms: [],
+        tone: "formal",
+        gradeLevel: "college",
+        wordDelta: 20,
+        humanLikeLevel: 70,
+      },
+      "One paragraph only.",
+      [],
+      1,
+      6,
+    );
+
+    const veryStrongPrompt = buildHumanizerPrompt(
+      {
+        text: "One paragraph only.",
+        protectedTerms: [],
+        tone: "formal",
+        gradeLevel: "college",
+        wordDelta: 20,
+        humanLikeLevel: 85,
+      },
+      "One paragraph only.",
+      [],
+      1,
+      7,
+    );
+
     const highPrompt = buildHumanizerPrompt(
       {
         text: "One paragraph only.",
@@ -318,6 +348,14 @@ describe("prompt design", () => {
     expect(lowPrompt).toContain("0/100");
     expect(lowPrompt).toContain("minimal");
     expect(lowPrompt).toContain("Keep the rewrite very close to the original.");
+    expect(strongPrompt).toContain("70/100");
+    expect(strongPrompt).toContain("strong");
+    expect(strongPrompt).toContain("start pushing statistical naturalness too");
+    expect(strongPrompt).toContain("reduce repeated structural templates");
+    expect(veryStrongPrompt).toContain("85/100");
+    expect(veryStrongPrompt).toContain("very strong");
+    expect(veryStrongPrompt).toContain("focus on statistical naturalness");
+    expect(veryStrongPrompt).toContain("include occasional unexpected structural choices");
     expect(highPrompt).toContain("100/100");
     expect(highPrompt).toContain("maximum");
     expect(highPrompt).toContain("Aim for the maximum rewrite distance");
