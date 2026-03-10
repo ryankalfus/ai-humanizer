@@ -441,20 +441,20 @@ export function hasPerParagraphBurstiness(output: string) {
   const paragraphs = splitParagraphs(output);
 
   for (const paragraph of paragraphs) {
-    const lengths = getSentenceLengths(paragraph);
+    const lens = getSentenceLengths(paragraph);
 
-    if (lengths.length < 3) {
+    if (lens.length < 3) {
       continue;
     }
 
-    const mean = lengths.reduce((sum, length) => sum + length, 0) / lengths.length;
+    const mean = lens.reduce((sum, length) => sum + length, 0) / lens.length;
 
     if (mean === 0) {
       continue;
     }
 
     const stdDev = Math.sqrt(
-      lengths.reduce((sum, length) => sum + (length - mean) ** 2, 0) / lengths.length,
+      lens.reduce((sum, length) => sum + (length - mean) ** 2, 0) / lens.length,
     );
     const cv = stdDev / mean;
 
@@ -462,10 +462,29 @@ export function hasPerParagraphBurstiness(output: string) {
       return false;
     }
 
-    const allSimilar = lengths.every((length) => Math.abs(length - mean) <= 5);
+    const allSimilar = lens.every((length) => Math.abs(length - mean) <= 5);
 
     if (allSimilar) {
       return false;
+    }
+
+    // Within each paragraph, check for runs of 3+ similar-length sentences
+    for (let j = 0; j <= lens.length - 3; j++) {
+      const a = lens[j], b = lens[j+1], c = lens[j+2];
+      if (Math.abs(a - b) <= 4 && Math.abs(b - c) <= 4 && Math.abs(a - c) <= 4) {
+        return false;  // Run of 3 uniform sentences within a paragraph
+      }
+    }
+
+    // Check for monotone increasing or decreasing runs of 4+
+    if (lens.length >= 4) {
+      let increasing = true;
+      let decreasing = true;
+      for (let j = 0; j < lens.length - 1; j++) {
+        if (lens[j+1] <= lens[j]) increasing = false;
+        if (lens[j+1] >= lens[j]) decreasing = false;
+      }
+      if (increasing || decreasing) return false;  // Monotone ramp
     }
   }
 
@@ -514,7 +533,39 @@ export function hasShortAndLongSentences(output: string) {
   const longCount = lengths.filter((length) => length > 25).length;
   const total = lengths.length;
 
-  return shortCount / total >= 0.12 && longCount / total >= 0.08;
+  return shortCount / total >= 0.15 && longCount / total >= 0.10;
+}
+
+export function hasParagraphLengthVariety(output: string) {
+  const paragraphs = splitParagraphs(output);
+  if (paragraphs.length < 3) return true;
+  
+  const lengths = paragraphs.map(p => countWords(p));
+  const mean = lengths.reduce((a, b) => a + b, 0) / lengths.length;
+  if (mean === 0) return true;
+  
+  const stdDev = Math.sqrt(
+    lengths.reduce((sum, l) => sum + (l - mean) ** 2, 0) / lengths.length
+  );
+  const cv = stdDev / mean;
+  
+  return cv >= 0.20;  // Minimum 20% CV for paragraph lengths
+}
+
+export function avoidsExcessiveTriadicLists(output: string) {
+  // Match patterns like "X, Y, and Z" — three items in parallel
+  const triadics = output.match(/\b\w+(?:\s+\w+)*,\s+\w+(?:\s+\w+)*,\s+and\s+\w+/g) ?? [];
+  const totalWords = countWords(output);
+  const maxAllowed = Math.max(1, Math.floor(totalWords / 500));
+  
+  return triadics.length <= maxAllowed;
+}
+
+export function avoidsParticipalOveruse(output: string) {
+  const matches = output.match(/,\s*\w+ing\b/g) ?? [];
+  const totalWords = countWords(output);
+  const maxAllowed = Math.max(2, Math.floor(totalWords / 300));
+  return matches.length <= maxAllowed;
 }
 
 export function avoidsParagraphTemplateRepetition(output: string) {
@@ -588,7 +639,11 @@ export function avoidsRepeatedOpeners(output: string) {
     counts.set(opener, (counts.get(opener) ?? 0) + 1);
   }
 
-  return [...counts.values()].every((count) => count < 3);
+  const totalSentences = openers.length;
+  // No opener should appear more than 10% of the time or more than 2 times, whichever is higher
+  const maxAllowed = Math.max(2, Math.floor(totalSentences * 0.10));
+  
+  return [...counts.values()].every((count) => count <= maxAllowed);
 }
 
 export function avoidsFormulaicTransitions(output: string) {
@@ -828,6 +883,12 @@ export function buildConstraintReport(
     );
   }
 
+  if (!hasParagraphLengthVariety(output)) {
+    report.unmetConstraints.push(
+      "Paragraph lengths are too uniform — redistribute words so some paragraphs are noticeably shorter and others noticeably longer.",
+    );
+  }
+
   if (!hasPerParagraphBurstiness(output)) {
     report.unmetConstraints.push(
       "At least one paragraph has sentences that are too uniform in length — need more short and long sentences within each paragraph.",
@@ -836,7 +897,7 @@ export function buildConstraintReport(
 
   if (!hasConsecutiveSentenceVariance(output)) {
     report.unmetConstraints.push(
-      "Three or more consecutive sentences have similar word counts — need larger jumps between consecutive sentence lengths.",
+      "Three or more consecutive sentences have similar word counts — break the rhythm by inserting a very short sentence (under 8 words) or a very long sentence (over 30 words) between similar-length sentences.",
     );
   }
 
@@ -852,13 +913,25 @@ export function buildConstraintReport(
 
   if (!hasAcceptableContentFunctionRatio(output)) {
     report.unmetConstraints.push(
-      "Too many content words relative to function words — add more natural connective tissue, hedges, and function words.",
+      "The prose is too content-word-heavy (ratio above 1.25). Add natural hedges, qualifiers, epistemic markers, and connective function words to bring the ratio closer to 1.0.",
     );
   }
 
   if (!hasShortAndLongSentences(output)) {
     report.unmetConstraints.push(
       "Not enough very short sentences (under 10 words) or very long sentences (over 25 words) — need more sentence-length extremes.",
+    );
+  }
+
+  if (!avoidsExcessiveTriadicLists(output)) {
+    report.unmetConstraints.push(
+      "Too many triadic parallel lists (X, Y, and Z). Maximum 1 per 500 words. Break lists across sentences or use different grammatical structures.",
+    );
+  }
+
+  if (!avoidsParticipalOveruse(output)) {
+    report.unmetConstraints.push(
+      "Too many present participial phrases (comma + -ing verb). Maximum 1 per 300 words. Restructure some as separate sentences or use different clause types.",
     );
   }
 

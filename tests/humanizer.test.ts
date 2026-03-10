@@ -25,7 +25,9 @@ import {
   avoidsAbstractNounClusters,
   avoidsContrastTemplates,
   avoidsEmDashes,
+  avoidsExcessiveTriadicLists,
   avoidsIndirectFraming,
+  avoidsParticipalOveruse,
   avoidsParagraphTemplateRepetition,
   avoidsTransitionOpenerOveruse,
   hasAcceptableTransitionDensity,
@@ -37,6 +39,7 @@ import {
   hasEnoughParagraphLevelRewriting,
   hasEnoughSentenceLevelRewriting,
   hasEnoughLexicalVariety,
+  hasParagraphLengthVariety,
   hasPerParagraphBurstiness,
   hasShortAndLongSentences,
   hasSufficientBurstiness,
@@ -180,6 +183,16 @@ describe("naturalness rules", () => {
       ),
     ).toBe(true);
     expect(
+      hasPerParagraphBurstiness(
+        "This sentence stays steady in length. Here is another line almost the same size. This third sentence stays just as even.",
+      ),
+    ).toBe(false);
+    expect(
+      hasPerParagraphBurstiness(
+        "Brief line. This sentence grows longer than the first one on purpose. This sentence grows longer still so the ramp becomes obvious. This sentence keeps extending even more to preserve that mechanical climb.",
+      ),
+    ).toBe(false);
+    expect(
       hasConsecutiveSentenceVariance(
         "Tiny line. This sentence runs much longer than the first one and clearly changes the pace. Brief. This sentence runs much longer than the first one and clearly changes the pace again.",
       ),
@@ -194,6 +207,21 @@ describe("naturalness rules", () => {
         "Short line. This sentence runs much longer than the first one and clearly changes the pace for readers who need more detail and a fuller explanation of the point at hand. Tiny. Another sentence grows much longer than the short ones before it, which helps the paragraph sound less even because it keeps unfolding past the reader's first expectation. Brief. Another quick line.",
       ),
     ).toBe(true);
+    expect(
+      hasParagraphLengthVariety(
+        "One two three four five.\n\nOne two three four five six.\n\nOne two three four five.\n\nOne two three four five six.\n\nOne two three four five.",
+      ),
+    ).toBe(false);
+    expect(
+      avoidsExcessiveTriadicLists(
+        "Writers use detail, contrast, and rhythm. They also rely on tension, pacing, and surprise.",
+      ),
+    ).toBe(false);
+    expect(
+      avoidsParticipalOveruse(
+        "He paused, looking away. She answered, smiling softly. They left, carrying notes.",
+      ),
+    ).toBe(false);
     expect(
       avoidsParagraphTemplateRepetition(
         "The policy matters. It shapes the school.\n\nThe routine matters. It shapes the day.\n\nThe message matters. It shapes the class.",
@@ -353,11 +381,18 @@ describe("prompt design", () => {
     expect(prompt).toContain("Per-paragraph word budget");
     expect(prompt).toContain("Paragraph 1: ~2 words");
     expect(prompt).toContain("Paragraph 2: ~2 words");
+    expect(prompt).toContain('CRITICAL: Maintain a content-to-function word ratio near 1.0.');
+    expect(prompt).toContain('HARD RULE: Do not use "X, Y, and Z" triadic parallel lists more than once per 500 words.');
+    expect(prompt).toContain('No word may be used as a sentence opener (the first word of a sentence) more than twice in the entire essay.');
+    expect(prompt).toContain('In this essay of ~32 sentences, at least 5 sentences MUST be under 10 words.');
+    expect(prompt).toContain("Content-to-function word ratio must be between 0.85 and 1.15.");
+    expect(prompt).toContain("CONSECUTIVE SENTENCE RULE: Never write 3 sentences in a row whose word counts are all within +/- 5 words of each other.");
+    expect(prompt).toContain("Original approximate counts (use as rough guidance, NOT exact targets):");
+    expect(prompt).toContain("Redistribute words so the standard deviation of paragraph word counts is at least 30% of the mean paragraph length.");
     expect(prompt).toContain("The essay has exactly 2 paragraphs.");
     expect(prompt).toContain("<p1>[paragraph 1 text]</p1>");
     expect(prompt).toContain("<p2>[paragraph 2 text]</p2>");
     expect(prompt).toContain("less common vocabulary");
-    expect(prompt).toContain('Do not use three or more parallel items in the same grammatical form ("X, Y, and Z" triads) more than once per 500 words.');
     expect(prompt).toContain('Do not write sentences that all land at 15-20 words');
     expect(prompt).toContain('Do not use "From X to Y" overview constructions');
     expect(prompt).toContain("median word-count difference between consecutive sentences must be >= 6 words");

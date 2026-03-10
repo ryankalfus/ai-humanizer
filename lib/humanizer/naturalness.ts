@@ -316,15 +316,15 @@ function measureContentFunctionRatioPenalty(text: string): number {
   const ratio = functionCount > 0 ? contentCount / functionCount : 2;
 
   if (ratio > 1.35) {
-    return 15;
+    return 20;
   }
 
-  if (ratio > 1.2) {
-    return 8;
+  if (ratio > 1.25) {
+    return 12;
   }
 
-  if (ratio > 1.1) {
-    return 3;
+  if (ratio > 1.15) {
+    return 5;
   }
 
   return 0;

@@ -321,6 +321,9 @@ Boundary rules before generation:
 - Make the result materially different in wording from the source. Do not preserve original sentence shells when a natural rewrite is possible.
 - Model-fingerprint mitigation: Do not default to your most natural or highest-probability phrasing patterns. Actively vary clause ordering, transition choices, and sentence openings. When you notice yourself reaching for a comfortable default phrasing, choose the second or third option instead.
 - Prefer direct, concrete verbs and plain human word choices over inflated, abstract, technical, or AI-coded language.
+- CRITICAL: Maintain a content-to-function word ratio near 1.0. AI text packs too many content words (nouns, main verbs, adjectives, adverbs) relative to function words (articles, prepositions, pronouns, auxiliaries, conjunctions, determiners). Human writing uses more function words, hedging expressions, qualifiers, and connective tissue. When rewriting, actively add natural hedges ("perhaps," "somewhat," "arguably," "to some extent," "in fairness"), epistemic markers ("seems," "appears," "might"), qualifiers ("at least," "partly," "to a degree"), and light connective phrases ("after all," "of course," "granted," "that said") where they fit the tone. Do not strip these out in compression passes. A ratio above 1.25 content words per function word is a failure.
+- HARD RULE: Do not use "X, Y, and Z" triadic parallel lists more than once per 500 words. The current output has far too many. When you need to list items, break them across separate sentences, use "X and Y" pairs, or embed items in different clause positions. Triadic lists at high frequency are one of the most recognizable structural fingerprints of model-generated text.
+- No word may be used as a sentence opener (the first word of a sentence) more than twice in the entire essay. Specifically, "The" must not open more than 2 sentences per 500 words. Vary sentence openings: use adverbial phrases, prepositional phrases, participial phrases, subordinate clauses, pronouns, and proper nouns as sentence starters. This is a hard constraint.
 - Do not use em dashes.
 - Do not use formulaic conclusion phrases such as "Ultimately,", "In conclusion,", "To summarize,", "Overall,", or similar wrap-up language unless those exact phrases already appear in the source and must be preserved.
 - Do not use contrast-template phrasing such as "not X, but Y", "not just X, but Y", or similar constructions.
@@ -338,7 +341,6 @@ Boundary rules before generation:
 - Do not stack too many abstract nouns ending in "-tion", "-ment", "-ness", "-ity", or similar forms when a more concrete rewrite would read better.
 - Entropy injection: At 2-3 points per 500 words, make a structural choice that is moderately unexpected: an unusual clause order, a sentence that starts with a conjunction, a deliberate fragment used for emphasis, an interrupted thought resumed with a parenthetical aside, or a rhetorical question. Spread these across different paragraphs.
 - Controlled imperfection: Include 2-3 of the following per 500 words of output: a slightly abrupt transition, a point restated in slightly different terms, a mildly informal aside, or uneven depth of development. Do not introduce factual errors, grammatical mistakes, or genuinely bad writing.
-- Do not use three or more parallel items in the same grammatical form ("X, Y, and Z" triads) more than once per 500 words.
 - Do not create perfectly balanced sentence pairs where one sentence presents a point and the immediately following sentence qualifies it with a matching structure and similar length.
 - Do not repeat the same paragraph-level template across multiple paragraphs.
 - Do not open more than one paragraph in the same essay with a dependent clause using the same subordinating conjunction.
@@ -367,13 +369,14 @@ Research-informed guidance:
 
 Statistical naturalness targets:
 - Sentence-length coefficient of variation (stddev / mean) must be >= 0.40 per paragraph.
-- At least 15% of all sentences must be under 10 words.
+- In this essay of ~32 sentences, at least 5 sentences MUST be under 10 words. These short sentences should be scattered across different paragraphs, not clustered together. Short sentences create natural rhythm breaks. Examples of natural short sentences in academic writing: "That claim falls apart." "The evidence says otherwise." "This matters." "Consider the alternative." "The pattern holds."
 - At least 10% of all sentences must be over 25 words.
 - No paragraph may have all sentences within +/- 5 words of each other.
 - Transition word density must not exceed 3% of total word count.
 - No transition word may be used as a sentence opener more than twice in the entire essay.
-- Content-to-function word ratio must be between 0.85 and 1.10.
+- Content-to-function word ratio must be between 0.85 and 1.15. Count content words (nouns, main verbs, adjectives, content adverbs) versus function words (articles, prepositions, pronouns, auxiliaries, conjunctions, determiners, modal verbs). If the ratio exceeds 1.20, add more function words through natural hedging, qualification, and connective tissue — do not just pad with filler.
 - The median word-count difference between consecutive sentences must be >= 6 words.
+- CONSECUTIVE SENTENCE RULE: Never write 3 sentences in a row whose word counts are all within +/- 5 words of each other. After every two sentences of similar length, the next sentence must differ by at least 8 words. This is a hard structural requirement, not a suggestion.
 
 Every pass should STAY CONSISTENT with the word count range guardrail (+/- ${request.wordDelta}), the writing level (${formatGradeLabel(request.gradeLevel)}), the writing style (${request.tone}), the human-like rewrite strength (${request.humanLikeLevel}/100), and all other user parameters.
 
@@ -402,8 +405,12 @@ Return policy:
 - Do not print version (1) or version (2).
 - Output only the final version from PASS 3 in the required format below.
 
-Per-paragraph word budget (stay close to these counts, individual paragraphs may vary but the total must stay within +/- ${request.wordDelta} words of ${originalWordCount}):
+Per-paragraph word budget — IMPORTANT: vary these counts to avoid uniform paragraph sizes. The total must stay within +/- ${request.wordDelta} words of ${originalWordCount}, but individual paragraphs should vary by at least +/- 20% from the averages below. Make at least one paragraph noticeably shorter than the others and at least one noticeably longer. Human writers do not produce paragraphs that are all the same length.
+
+Original approximate counts (use as rough guidance, NOT exact targets):
 ${perParagraphWordCounts.join("\n")}
+
+Redistribute words so the standard deviation of paragraph word counts is at least 30% of the mean paragraph length. For example, if the mean is 130 words, some paragraphs should be around 90 words and some around 180 words.
 
 Return exactly this format. The essay has exactly ${paragraphCount} paragraphs. Output each paragraph inside its own numbered tag. Do not add, remove, or merge any paragraph tags.
 <rewritten_essay>
