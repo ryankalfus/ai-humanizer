@@ -8,6 +8,8 @@ const SETUP_MESSAGE =
 export function getHumanizerConfig() {
   const apiKey = process.env.OPENAI_API_KEY?.trim();
   const modelName = process.env.OPENAI_MODEL?.trim() || DEFAULT_MODEL;
+  const crossModelKey = process.env.CROSS_MODEL_API_KEY?.trim();
+  const crossModelName = process.env.CROSS_MODEL_NAME?.trim();
 
   if (!apiKey) {
     throw new HumanizerError("OpenAI is not set up yet.", "MODEL_NOT_CONFIGURED", SETUP_MESSAGE);
@@ -16,6 +18,8 @@ export function getHumanizerConfig() {
   return {
     apiKey,
     modelName,
+    crossModelKey: crossModelKey || null,
+    crossModelName: crossModelName || null,
   };
 }
 

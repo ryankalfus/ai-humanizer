@@ -110,3 +110,39 @@ export function getSentenceOpeners(input: string) {
 export function getSentenceLengths(input: string) {
   return getSentences(input).map((sentence) => countWords(sentence));
 }
+
+export function getConsecutiveSentenceLengthDiffs(input: string) {
+  const lengths = getSentenceLengths(input);
+  const diffs: number[] = [];
+
+  for (let index = 0; index < lengths.length - 1; index += 1) {
+    diffs.push(Math.abs(lengths[index] - lengths[index + 1]));
+  }
+
+  return diffs;
+}
+
+export function computeSentenceLengthCV(input: string) {
+  const lengths = getSentenceLengths(input);
+
+  if (lengths.length < 2) {
+    return 0;
+  }
+
+  const mean = lengths.reduce((sum, length) => sum + length, 0) / lengths.length;
+
+  if (mean === 0) {
+    return 0;
+  }
+
+  const stdDev = Math.sqrt(
+    lengths.reduce((sum, length) => sum + (length - mean) ** 2, 0) / lengths.length,
+  );
+
+  return stdDev / mean;
+}
+
+export function getLastSentence(input: string) {
+  const sentences = getSentences(input);
+  return sentences[sentences.length - 1] ?? "";
+}

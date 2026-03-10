@@ -7,11 +7,14 @@ import type {
   ValidationResult,
 } from "@/lib/humanizer/types";
 import {
+  computeSentenceLengthCV,
   countWords,
   estimateGradeBand,
   escapeRegExp,
+  getConsecutiveSentenceLengthDiffs,
   getSentenceLengths,
   getSentenceOpeners,
+  getSentences,
   splitParagraphs,
 } from "@/lib/humanizer/text";
 
@@ -37,6 +40,134 @@ const TRANSITION_PATTERNS = [
   "in today's landscape",
   "at its core",
 ];
+
+const TRANSITION_WORDS = new Set([
+  "furthermore",
+  "moreover",
+  "additionally",
+  "consequently",
+  "therefore",
+  "however",
+  "nevertheless",
+  "nonetheless",
+  "subsequently",
+  "accordingly",
+  "hence",
+  "thus",
+  "meanwhile",
+  "conversely",
+  "similarly",
+  "likewise",
+]);
+
+const FUNCTION_WORDS = new Set([
+  "a",
+  "an",
+  "the",
+  "is",
+  "are",
+  "was",
+  "were",
+  "be",
+  "been",
+  "being",
+  "have",
+  "has",
+  "had",
+  "do",
+  "does",
+  "did",
+  "will",
+  "would",
+  "shall",
+  "should",
+  "may",
+  "might",
+  "must",
+  "can",
+  "could",
+  "to",
+  "of",
+  "in",
+  "for",
+  "on",
+  "with",
+  "at",
+  "by",
+  "from",
+  "as",
+  "into",
+  "through",
+  "during",
+  "before",
+  "after",
+  "above",
+  "below",
+  "between",
+  "out",
+  "off",
+  "over",
+  "under",
+  "again",
+  "further",
+  "then",
+  "once",
+  "here",
+  "there",
+  "when",
+  "where",
+  "why",
+  "how",
+  "all",
+  "each",
+  "every",
+  "both",
+  "few",
+  "more",
+  "most",
+  "other",
+  "some",
+  "such",
+  "no",
+  "not",
+  "only",
+  "own",
+  "same",
+  "so",
+  "than",
+  "too",
+  "very",
+  "just",
+  "because",
+  "if",
+  "or",
+  "and",
+  "but",
+  "nor",
+  "yet",
+  "this",
+  "that",
+  "these",
+  "those",
+  "it",
+  "its",
+  "he",
+  "she",
+  "they",
+  "them",
+  "their",
+  "we",
+  "our",
+  "you",
+  "your",
+  "i",
+  "me",
+  "my",
+  "which",
+  "who",
+  "whom",
+  "what",
+]);
 
 const BANNED_PHRASE_PATTERNS = [
   /\bultimately,\b/i,
@@ -175,6 +306,72 @@ function jaccardSimilarity(left: string[], right: string[]) {
   return total ? shared / total : 0;
 }
 
+function computeContentFunctionRatio(output: string) {
+  const words = output.toLowerCase().match(/\b[a-z][a-z'-]*\b/g) ?? [];
+
+  if (words.length === 0) {
+    return 0;
+  }
+
+  let contentCount = 0;
+  let functionCount = 0;
+
+  for (const word of words) {
+    if (FUNCTION_WORDS.has(word)) {
+      functionCount += 1;
+    } else {
+      contentCount += 1;
+    }
+  }
+
+  return functionCount > 0 ? contentCount / functionCount : 2;
+}
+
+function computeShortLongSentencePercents(output: string) {
+  const lengths = getSentenceLengths(output);
+  const total = lengths.length;
+
+  if (total === 0) {
+    return { shortSentencePercent: 0, longSentencePercent: 0 };
+  }
+
+  return {
+    shortSentencePercent: lengths.filter((length) => length < 10).length / total,
+    longSentencePercent: lengths.filter((length) => length > 25).length / total,
+  };
+}
+
+function computeMedianConsecutiveDiff(output: string) {
+  const diffs = getConsecutiveSentenceLengthDiffs(output).sort((left, right) => left - right);
+
+  if (!diffs.length) {
+    return 0;
+  }
+
+  return diffs[Math.floor(diffs.length / 2)];
+}
+
+function computeParagraphLengthCV(output: string) {
+  const paragraphs = splitParagraphs(output);
+
+  if (paragraphs.length < 2) {
+    return 0;
+  }
+
+  const lengths = paragraphs.map((paragraph) => countWords(paragraph));
+  const mean = lengths.reduce((sum, length) => sum + length, 0) / lengths.length;
+
+  if (mean === 0) {
+    return 0;
+  }
+
+  const stdDev = Math.sqrt(
+    lengths.reduce((sum, length) => sum + (length - mean) ** 2, 0) / lengths.length,
+  );
+
+  return stdDev / mean;
+}
+
 export function citationsPreserved(original: string, output: string) {
   const citations = extractCitations(original).map((item) => item.original);
   return citations.every((citation) => output.includes(citation));
@@ -221,17 +418,166 @@ export function hasSentenceVariety(output: string) {
 
 export function hasSufficientBurstiness(output: string) {
   const lengths = getSentenceLengths(output);
-  if (lengths.length < 5) return true;
+
+  if (lengths.length < 5) {
+    return true;
+  }
 
   const mean = lengths.reduce((sum, value) => sum + value, 0) / lengths.length;
-  if (mean === 0) return true;
+
+  if (mean === 0) {
+    return true;
+  }
 
   const stdDev = Math.sqrt(
     lengths.reduce((sum, value) => sum + (value - mean) ** 2, 0) / lengths.length,
   );
   const cv = stdDev / mean;
 
-  return cv >= 0.35;
+  return cv >= 0.4;
+}
+
+export function hasPerParagraphBurstiness(output: string) {
+  const paragraphs = splitParagraphs(output);
+
+  for (const paragraph of paragraphs) {
+    const lengths = getSentenceLengths(paragraph);
+
+    if (lengths.length < 3) {
+      continue;
+    }
+
+    const mean = lengths.reduce((sum, length) => sum + length, 0) / lengths.length;
+
+    if (mean === 0) {
+      continue;
+    }
+
+    const stdDev = Math.sqrt(
+      lengths.reduce((sum, length) => sum + (length - mean) ** 2, 0) / lengths.length,
+    );
+    const cv = stdDev / mean;
+
+    if (cv < 0.3) {
+      return false;
+    }
+
+    const allSimilar = lengths.every((length) => Math.abs(length - mean) <= 5);
+
+    if (allSimilar) {
+      return false;
+    }
+  }
+
+  return true;
+}
+
+export function hasConsecutiveSentenceVariance(output: string) {
+  const lengths = getSentenceLengths(output);
+
+  if (lengths.length < 4) {
+    return true;
+  }
+
+  for (let index = 0; index <= lengths.length - 3; index += 1) {
+    const a = lengths[index];
+    const b = lengths[index + 1];
+    const c = lengths[index + 2];
+
+    if (Math.abs(a - b) <= 5 && Math.abs(b - c) <= 5 && Math.abs(a - c) <= 5) {
+      return false;
+    }
+  }
+
+  const median = computeMedianConsecutiveDiff(output);
+  return median >= 5;
+}
+
+export function hasAcceptableContentFunctionRatio(output: string) {
+  const words = output.toLowerCase().match(/\b[a-z][a-z'-]*\b/g) ?? [];
+
+  if (words.length < 50) {
+    return true;
+  }
+
+  return computeContentFunctionRatio(output) <= 1.25;
+}
+
+export function hasShortAndLongSentences(output: string) {
+  const lengths = getSentenceLengths(output);
+
+  if (lengths.length < 5) {
+    return true;
+  }
+
+  const shortCount = lengths.filter((length) => length < 10).length;
+  const longCount = lengths.filter((length) => length > 25).length;
+  const total = lengths.length;
+
+  return shortCount / total >= 0.12 && longCount / total >= 0.08;
+}
+
+export function avoidsParagraphTemplateRepetition(output: string) {
+  const paragraphs = splitParagraphs(output);
+
+  if (paragraphs.length < 3) {
+    return true;
+  }
+
+  const patterns = paragraphs.map((paragraph) => {
+    const firstSentence = getSentences(paragraph)[0] ?? "";
+
+    if (/^(while|although|though|when|if|since|because|as)\b/i.test(firstSentence)) {
+      return "subordinate";
+    }
+
+    if (
+      /^(furthermore|moreover|additionally|however|therefore|consequently)\b/i.test(
+        firstSentence,
+      )
+    ) {
+      return "transition";
+    }
+
+    if (/^(the|a|an|this|these|that|those)\b/i.test(firstSentence)) {
+      return "article";
+    }
+
+    if (/^(it|there)\b/i.test(firstSentence)) {
+      return "expletive";
+    }
+
+    return "other";
+  });
+
+  for (let index = 0; index < patterns.length - 2; index += 1) {
+    if (
+      patterns[index] === patterns[index + 1] &&
+      patterns[index + 1] === patterns[index + 2]
+    ) {
+      return false;
+    }
+  }
+
+  return true;
+}
+
+export function avoidsTransitionOpenerOveruse(output: string) {
+  const sentences = getSentences(output);
+  let transitionOpenerCount = 0;
+
+  for (const sentence of sentences) {
+    const firstWord = (sentence.match(/\b[\w'-]+\b/i)?.[0] ?? "").toLowerCase();
+
+    if (TRANSITION_WORDS.has(firstWord)) {
+      transitionOpenerCount += 1;
+    }
+  }
+
+  const totalWords = countWords(output);
+  const maxAllowed = Math.max(2, Math.floor(totalWords / 500) * 2);
+
+  return transitionOpenerCount <= maxAllowed;
 }
 
 export function avoidsRepeatedOpeners(output: string) {
@@ -247,30 +593,16 @@ export function avoidsRepeatedOpeners(output: string) {
 
 export function avoidsFormulaicTransitions(output: string) {
   const lower = output.toLowerCase();
-  return TRANSITION_PATTERNS.every((phrase) => (lower.match(new RegExp(`\\b${escapeRegExp(phrase)}\\b`, "g"))?.length ?? 0) < 2);
+
+  return TRANSITION_PATTERNS.every(
+    (phrase) =>
+      (lower.match(new RegExp(`\\b${escapeRegExp(phrase)}\\b`, "g"))?.length ?? 0) < 2,
+  );
 }
 
 export function hasAcceptableTransitionDensity(output: string) {
   const words = output.toLowerCase().match(/\b[\w'-]+\b/g) ?? [];
-  const transitionWords = new Set([
-    "furthermore",
-    "moreover",
-    "additionally",
-    "consequently",
-    "therefore",
-    "however",
-    "nevertheless",
-    "nonetheless",
-    "subsequently",
-    "accordingly",
-    "hence",
-    "thus",
-    "meanwhile",
-    "conversely",
-    "similarly",
-    "likewise",
-  ]);
-  const transitionCount = words.filter((word) => transitionWords.has(word)).length;
+  const transitionCount = words.filter((word) => TRANSITION_WORDS.has(word)).length;
 
   return words.length === 0 || transitionCount / words.length < 0.03;
 }
@@ -283,6 +615,7 @@ export function avoidsContrastTemplates(output: string) {
   const lower = output.toLowerCase();
   const broadContrastPattern = /\bnot\b[^.!?\n]{0,80}\bbut\b/;
   const notJustPattern = /\bnot just\b[^.!?\n]{0,80}\bbut\b/;
+
   return !broadContrastPattern.test(lower) && !notJustPattern.test(lower);
 }
 
@@ -292,13 +625,15 @@ export function avoidsIndirectFraming(output: string) {
 
 export function avoidsAiVocabulary(output: string) {
   const lower = output.toLowerCase();
+
   return BANNED_AI_VOCABULARY.every(
-    (word) => !(new RegExp(`\\b${escapeRegExp(word)}\\b`, "i").test(lower)),
+    (word) => !new RegExp(`\\b${escapeRegExp(word)}\\b`, "i").test(lower),
   );
 }
 
 export function avoidsRepeatedGenericVerbs(output: string) {
   const lower = output.toLowerCase();
+
   return GENERIC_VERBS.every(
     (word) => (lower.match(new RegExp(`\\b${escapeRegExp(word)}\\b`, "g"))?.length ?? 0) < 3,
   );
@@ -436,6 +771,11 @@ export function buildConstraintReport(
   request: HumanizeRequest,
   output: string,
 ): ConstraintReport {
+  const sentenceLengthCV = computeSentenceLengthCV(output);
+  const contentFunctionRatio = computeContentFunctionRatio(output);
+  const { shortSentencePercent, longSentencePercent } = computeShortLongSentencePercents(output);
+  const medianConsecutiveDiff = computeMedianConsecutiveDiff(output);
+  const paragraphLengthCV = computeParagraphLengthCV(output);
   const report: ConstraintReport = {
     paragraphCountMatched: paragraphCountMatched(request.text, output),
     citationsPreserved: citationsPreserved(request.text, output),
@@ -443,6 +783,12 @@ export function buildConstraintReport(
     wordRangeMatched: withinWordRange(request.text, output, request.wordDelta),
     readabilityMatched: readabilityFitsTarget(request.gradeLevel, output),
     naturalnessScore: scoreNaturalness(output),
+    sentenceLengthCV,
+    contentFunctionRatio,
+    shortSentencePercent,
+    longSentencePercent,
+    medianConsecutiveDiff,
+    paragraphLengthCV,
     unmetConstraints: [],
   };
 
@@ -463,7 +809,9 @@ export function buildConstraintReport(
   }
 
   if (!report.readabilityMatched) {
-    report.unmetConstraints.push("The rewrite does not match the requested writing level closely enough.");
+    report.unmetConstraints.push(
+      "The rewrite does not match the requested writing level closely enough.",
+    );
   }
 
   if (!avoidsRepeatedOpeners(output)) {
@@ -475,7 +823,21 @@ export function buildConstraintReport(
   }
 
   if (!hasSufficientBurstiness(output)) {
-    report.unmetConstraints.push("Sentence lengths are too uniform — need more variation between short and long sentences.");
+    report.unmetConstraints.push(
+      "Sentence lengths are too uniform — need more variation between short and long sentences.",
+    );
+  }
+
+  if (!hasPerParagraphBurstiness(output)) {
+    report.unmetConstraints.push(
+      "At least one paragraph has sentences that are too uniform in length — need more short and long sentences within each paragraph.",
+    );
+  }
+
+  if (!hasConsecutiveSentenceVariance(output)) {
+    report.unmetConstraints.push(
+      "Three or more consecutive sentences have similar word counts — need larger jumps between consecutive sentence lengths.",
+    );
   }
 
   if (!avoidsFormulaicTransitions(output)) {
@@ -483,7 +845,33 @@ export function buildConstraintReport(
   }
 
   if (!hasAcceptableTransitionDensity(output)) {
-    report.unmetConstraints.push("Too many formal transition words — reduce transition density to feel more natural.");
+    report.unmetConstraints.push(
+      "Too many formal transition words — reduce transition density to feel more natural.",
+    );
+  }
+
+  if (!hasAcceptableContentFunctionRatio(output)) {
+    report.unmetConstraints.push(
+      "Too many content words relative to function words — add more natural connective tissue, hedges, and function words.",
+    );
+  }
+
+  if (!hasShortAndLongSentences(output)) {
+    report.unmetConstraints.push(
+      "Not enough very short sentences (under 10 words) or very long sentences (over 25 words) — need more sentence-length extremes.",
+    );
+  }
+
+  if (!avoidsParagraphTemplateRepetition(output)) {
+    report.unmetConstraints.push(
+      "Multiple consecutive paragraphs open with the same syntactic pattern — vary paragraph openings.",
+    );
+  }
+
+  if (!avoidsTransitionOpenerOveruse(output)) {
+    report.unmetConstraints.push(
+      "Too many sentences begin with formal transition words — reduce transition-as-opener frequency.",
+    );
   }
 
   if (!avoidsEmDashes(output)) {
@@ -495,15 +883,21 @@ export function buildConstraintReport(
   }
 
   if (!avoidsIndirectFraming(output)) {
-    report.unmetConstraints.push("The rewrite still uses indirect framing or stock lead-in phrases.");
+    report.unmetConstraints.push(
+      "The rewrite still uses indirect framing or stock lead-in phrases.",
+    );
   }
 
   if (!avoidsAiVocabulary(output)) {
-    report.unmetConstraints.push("The rewrite still uses overly AI-coded or technical stock vocabulary.");
+    report.unmetConstraints.push(
+      "The rewrite still uses overly AI-coded or technical stock vocabulary.",
+    );
   }
 
   if (!avoidsRepeatedGenericVerbs(output)) {
-    report.unmetConstraints.push("The rewrite repeats too many generic verbs and weak sentence patterns.");
+    report.unmetConstraints.push(
+      "The rewrite repeats too many generic verbs and weak sentence patterns.",
+    );
   }
 
   if (!avoidsAbstractNounClusters(output)) {
@@ -511,19 +905,27 @@ export function buildConstraintReport(
   }
 
   if (!hasEnoughLexicalVariety(output, request.humanLikeLevel)) {
-    report.unmetConstraints.push("The rewrite does not vary its wording enough for the selected rewrite strength.");
+    report.unmetConstraints.push(
+      "The rewrite does not vary its wording enough for the selected rewrite strength.",
+    );
   }
 
   if (!hasEnoughSentenceLevelRewriting(request.text, output, request.humanLikeLevel)) {
-    report.unmetConstraints.push("Too many sentences still stay too close to the source for the selected rewrite strength.");
+    report.unmetConstraints.push(
+      "Too many sentences still stay too close to the source for the selected rewrite strength.",
+    );
   }
 
   if (!hasEnoughParagraphLevelRewriting(request.text, output, request.humanLikeLevel)) {
-    report.unmetConstraints.push("The paragraph-level rewrite still mirrors the source too closely for the selected rewrite strength.");
+    report.unmetConstraints.push(
+      "The paragraph-level rewrite still mirrors the source too closely for the selected rewrite strength.",
+    );
   }
 
   if (!staysWithinExpectedDiction(request.gradeLevel, output)) {
-    report.unmetConstraints.push("The rewrite uses vocabulary that is too advanced for the selected writing level.");
+    report.unmetConstraints.push(
+      "The rewrite uses vocabulary that is too advanced for the selected writing level.",
+    );
   }
 
   if (report.naturalnessScore < getNaturalnessThreshold(request.gradeLevel)) {

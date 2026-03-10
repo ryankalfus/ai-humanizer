@@ -37,6 +37,12 @@ export interface ConstraintReport {
   wordRangeMatched: boolean;
   readabilityMatched: boolean;
   naturalnessScore: number;
+  sentenceLengthCV: number;
+  contentFunctionRatio: number;
+  shortSentencePercent: number;
+  longSentencePercent: number;
+  medianConsecutiveDiff: number;
+  paragraphLengthCV: number;
   unmetConstraints: string[];
 }
 
