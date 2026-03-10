@@ -2,6 +2,7 @@ import {
   countWords,
   getSentenceLengths,
   getSentenceOpeners,
+  getSentences,
   splitParagraphs,
 } from "@/lib/humanizer/text";
 
@@ -61,6 +62,21 @@ const OVER_ADVANCED_SWAPS: Record<string, string> = {
   juxtaposition: "contrast",
   heretofore: "previously",
   thusly: "so",
+  underpinning: "basis",
+  delineate: "outline",
+  burgeoning: "growing",
+  ubiquitous: "common",
+  exacerbate: "worsen",
+  necessitate: "require",
+  underpin: "support",
+  bolster: "strengthen",
+  spearhead: "lead",
+  galvanize: "motivate",
+  epitomize: "represent",
+  juxtapose: "compare",
+  synergy: "cooperation",
+  holistic: "complete",
+  whilst: "while",
 };
 
 const FILLER_PHRASES = [
@@ -90,6 +106,18 @@ const FILLER_PHRASES = [
   "it can be argued",
   "one may say",
   "one might argue",
+  "it is crucial to",
+  "it is essential to",
+  "plays a vital role",
+  "in the realm of",
+  "serves as a cornerstone",
+  "remains a critical",
+  "offers a unique perspective",
+  "stands as a testament",
+  "has garnered significant",
+  "continues to evolve",
+  "a myriad of",
+  "a plethora of",
 ];
 
 const FUNCTION_WORDS = new Set([
@@ -273,6 +301,73 @@ function reduceParticipialPhraseDensity(text: string) {
   return output.replace(/\s{2,}/g, " ");
 }
 
+function breakExcessTriadicLists(text: string): string {
+  const triadPattern =
+    /(\b\w+(?:\s+\w+){0,3}),\s+(\w+(?:\s+\w+){0,3}),\s+and\s+(\w+(?:\s+\w+){0,3})\b/gi;
+  const matches = [...text.matchAll(triadPattern)];
+
+  if (matches.length <= 1) {
+    return text;
+  }
+
+  let output = text;
+  for (let index = matches.length - 1; index >= 1; index -= 1) {
+    const match = matches[index];
+
+    if (!match || typeof match.index !== "number") {
+      continue;
+    }
+
+    const replacement = `${match[1]} and ${match[2]}. ${match[3].charAt(0).toUpperCase() + match[3].slice(1)} also`;
+    output =
+      output.slice(0, match.index) +
+      replacement +
+      output.slice(match.index + match[0].length);
+  }
+
+  return output;
+}
+
+function reduceTransitionStacking(text: string): string {
+  let output = text;
+
+  output = output.replace(
+    /\b(Furthermore|Moreover|Additionally|Consequently|Therefore|However|Nevertheless|Nonetheless|Subsequently|Accordingly|Hence|Thus|Meanwhile|Conversely|Similarly|Likewise),\s*(furthermore|moreover|additionally|consequently|therefore|however|nevertheless|nonetheless|subsequently|accordingly|hence|thus|meanwhile|conversely|similarly|likewise),?\s*/gi,
+    "$1, ",
+  );
+
+  const paragraphs = splitParagraphs(output);
+  const fixedParagraphs = paragraphs.map((paragraph) => {
+    const sentences = getSentences(paragraph);
+
+    if (sentences.length < 3) {
+      return paragraph;
+    }
+
+    const transitionPattern =
+      /^(Furthermore|Moreover|Additionally|Consequently|Therefore|However|Nevertheless|Nonetheless|Subsequently|Accordingly|Hence|Thus|Meanwhile|Conversely|Similarly|Likewise),?\s+/i;
+
+    let consecutiveTransitions = 0;
+    const fixed = sentences.map((sentence) => {
+      if (transitionPattern.test(sentence)) {
+        consecutiveTransitions += 1;
+
+        if (consecutiveTransitions >= 2) {
+          return sentence.replace(transitionPattern, "");
+        }
+      } else {
+        consecutiveTransitions = 0;
+      }
+
+      return sentence;
+    });
+
+    return fixed.join(" ");
+  });
+
+  return fixedParagraphs.join("\n\n");
+}
+
 export function cleanupSurfacePatterns(text: string) {
   let output = text
     .replace(/—/g, ", ")
@@ -291,8 +386,104 @@ export function cleanupSurfacePatterns(text: string) {
   output = output.replace(/not only\s+([^,]+),?\s*but\s+also\s+/gi, "$1, and also ");
   output = output.replace(/^From\s+[^,]+\s+to\s+[^,]+,\s*/gim, "");
   output = reduceParticipialPhraseDensity(output);
+  output = reduceTransitionStacking(output);
+  output = breakExcessTriadicLists(output);
+  output = output
+    .replace(/\u202F/g, " ")
+    .replace(/\u200B/g, "")
+    .replace(/\u200C/g, "")
+    .replace(/\u200D/g, "")
+    .replace(/\uFEFF/g, "")
+    .replace(/\u00A0/g, " ");
 
   return output.replace(/\n{3,}/g, "\n\n").trim();
+}
+
+export function injectEntropyPostProcess(text: string): string {
+  const paragraphs = splitParagraphs(text);
+
+  const processed = paragraphs.map((paragraph, paragraphIndex) => {
+    const sentences = getSentences(paragraph);
+
+    if (sentences.length < 3) {
+      return paragraph;
+    }
+
+    const lengths = sentences.map((sentence) => countWords(sentence));
+    const mean = lengths.reduce((sum, value) => sum + value, 0) / lengths.length;
+    const stdDev = Math.sqrt(
+      lengths.reduce((sum, value) => sum + (value - mean) ** 2, 0) / lengths.length,
+    );
+    const cv = mean > 0 ? stdDev / mean : 0;
+    const modified = [...sentences];
+
+    if (cv < 0.4 && sentences.length >= 3) {
+      let longestIndex = 0;
+      for (let index = 1; index < lengths.length; index += 1) {
+        if (lengths[index] > lengths[longestIndex]) {
+          longestIndex = index;
+        }
+      }
+
+      const longest = modified[longestIndex];
+      const breakPoints = [", and ", ", but ", ", so ", ", yet ", " — ", "; "];
+      for (const breakPoint of breakPoints) {
+        const breakIndex = longest.indexOf(breakPoint);
+        if (breakIndex > 0) {
+          const left = longest.slice(0, breakIndex).trim();
+          const right = longest.slice(breakIndex + breakPoint.length).trim();
+          if (countWords(left) >= 4 && countWords(right) >= 4) {
+            const capitalRight = right.charAt(0).toUpperCase() + right.slice(1);
+            modified[longestIndex] = `${left}.`;
+            modified.splice(longestIndex + 1, 0, capitalRight);
+            break;
+          }
+        }
+      }
+    }
+
+    if (paragraphIndex % 2 === 0 && modified.length >= 4) {
+      const targetIndex = Math.min(2, modified.length - 1);
+      const sentence = modified[targetIndex];
+      if (sentence && !/^(And|But|Or|So|Yet)\b/i.test(sentence)) {
+        const transitionMatch = sentence.match(
+          /^(However|Nevertheless|Nonetheless|Yet|Still),?\s+/i,
+        );
+        if (transitionMatch) {
+          modified[targetIndex] = `But ${sentence.slice(transitionMatch[0].length)}`;
+        }
+      }
+    }
+
+    for (let index = 0; index < modified.length - 2; index += 1) {
+      const leftLength = countWords(modified[index]);
+      const middleLength = countWords(modified[index + 1]);
+      const rightLength = countWords(modified[index + 2]);
+
+      if (
+        Math.abs(leftLength - middleLength) <= 5 &&
+        Math.abs(middleLength - rightLength) <= 5 &&
+        middleLength > 12
+      ) {
+        const middle = modified[index + 1];
+        const commaIndex = middle.indexOf(", ");
+        if (commaIndex > 0 && commaIndex < middle.length - 10) {
+          const left = middle.slice(0, commaIndex).trim();
+          const right = middle.slice(commaIndex + 2).trim();
+          if (countWords(left) >= 3 && countWords(right) >= 3) {
+            const capitalRight = right.charAt(0).toUpperCase() + right.slice(1);
+            modified[index + 1] = `${left}.`;
+            modified.splice(index + 2, 0, capitalRight);
+            break;
+          }
+        }
+      }
+    }
+
+    return modified.join(" ");
+  });
+
+  return processed.join("\n\n");
 }
 
 function measureContentFunctionRatioPenalty(text: string): number {
@@ -466,3 +657,5 @@ export function scoreNaturalness(text: string) {
       openerPenalty,
   );
 }
+
+export { FUNCTION_WORDS, TRANSITION_WORDS };

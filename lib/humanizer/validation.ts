@@ -1,4 +1,5 @@
 import { extractCitations } from "@/lib/humanizer/citations";
+import { computeDetectionScore } from "@/lib/humanizer/detector";
 import { scoreNaturalness } from "@/lib/humanizer/naturalness";
 import type {
   ConstraintReport,
@@ -568,6 +569,55 @@ export function avoidsParticipalOveruse(output: string) {
   return matches.length <= maxAllowed;
 }
 
+export function hasSufficientDetectionScore(output: string, level: number): boolean {
+  if (level < 70) return true;
+  const { humanScore } = computeDetectionScore(output);
+  return humanScore >= 55;
+}
+
+export function hasHealthyHapaxRatio(output: string): boolean {
+  const words = output.toLowerCase().match(/\b[a-z][a-z'-]*\b/g) ?? [];
+  if (words.length < 60) return true;
+
+  const freq = new Map<string, number>();
+  for (const word of words) {
+    freq.set(word, (freq.get(word) ?? 0) + 1);
+  }
+
+  let hapax = 0;
+  for (const count of freq.values()) {
+    if (count === 1) hapax += 1;
+  }
+
+  const hapaxRatio = freq.size > 0 ? hapax / freq.size : 0;
+  return hapaxRatio >= 0.42;
+}
+
+export function avoidsConsecutiveLengthMonotony(output: string): boolean {
+  const sentences = output.split(/(?<=[.!?])\s+/g).filter((sentence) => sentence.trim().length > 0);
+  if (sentences.length < 4) return true;
+
+  const lengths = sentences.map((sentence) =>
+    sentence.split(/\s+/).filter((word) => word.length > 0).length,
+  );
+
+  for (let index = 0; index < lengths.length - 2; index += 1) {
+    const first = lengths[index];
+    const second = lengths[index + 1];
+    const third = lengths[index + 2];
+
+    if (
+      Math.abs(first - second) <= 5 &&
+      Math.abs(second - third) <= 5 &&
+      Math.abs(first - third) <= 5
+    ) {
+      return false;
+    }
+  }
+
+  return true;
+}
+
 export function avoidsParagraphTemplateRepetition(output: string) {
   const paragraphs = splitParagraphs(output);
 
@@ -932,6 +982,24 @@ export function buildConstraintReport(
   if (!avoidsParticipalOveruse(output)) {
     report.unmetConstraints.push(
       "Too many present participial phrases (comma + -ing verb). Maximum 1 per 300 words. Restructure some as separate sentences or use different clause types.",
+    );
+  }
+
+  if (!hasSufficientDetectionScore(output, request.humanLikeLevel)) {
+    report.unmetConstraints.push(
+      "The rewrite scores too high on AI-detection signals — needs more sentence-length variation, vocabulary diversity, and structural unpredictability.",
+    );
+  }
+
+  if (!hasHealthyHapaxRatio(output)) {
+    report.unmetConstraints.push(
+      "Too many words are repeated — increase vocabulary diversity so more words appear only once.",
+    );
+  }
+
+  if (!avoidsConsecutiveLengthMonotony(output)) {
+    report.unmetConstraints.push(
+      "Three or more consecutive sentences have very similar word counts — break up the rhythm.",
     );
   }
 

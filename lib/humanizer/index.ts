@@ -4,7 +4,8 @@ import {
   restoreProtectedSpans,
   type ProtectedSpan,
 } from "@/lib/humanizer/citations";
-import { cleanupSurfacePatterns } from "@/lib/humanizer/naturalness";
+import { cleanupSurfacePatterns, injectEntropyPostProcess } from "@/lib/humanizer/naturalness";
+import { computeDetectionScore, computeParagraphDetectionScore } from "@/lib/humanizer/detector";
 import { HumanizerError } from "@/lib/humanizer/errors";
 import {
   getCrossModelClient,
@@ -44,9 +45,11 @@ interface Candidate {
   outputText: string;
   selfCheck: ModelSelfCheck;
   validation: ValidationResult;
+  detectionScore: number;
 }
 
 const MAX_ATTEMPTS = 8;
+const PARAGRAPH_CANDIDATES = 3;
 
 const defaultSelfCheck: ModelSelfCheck = {
   protectedTermsKept: false,
@@ -142,7 +145,19 @@ async function generateText(
 }
 
 function finalizeOutput(outputText: string, spans: ProtectedSpan[]) {
-  return cleanupSurfacePatterns(restoreProtectedSpans(outputText, spans));
+  const restored = restoreProtectedSpans(outputText, spans);
+  const cleaned = cleanupSurfacePatterns(restored);
+  return stripUnicodeWatermarks(cleaned);
+}
+
+function stripUnicodeWatermarks(text: string): string {
+  return text
+    .replace(/\u202F/g, " ")
+    .replace(/\u200B/g, "")
+    .replace(/\u200C/g, "")
+    .replace(/\u200D/g, "")
+    .replace(/\uFEFF/g, "")
+    .replace(/\u00A0/g, " ");
 }
 
 function computeCV(text: string) {
@@ -158,6 +173,10 @@ function chooseBestCandidate(candidates: Candidate[]) {
   return [...candidates].sort((left, right) => {
     if (left.validation.violations.length !== right.validation.violations.length) {
       return left.validation.violations.length - right.validation.violations.length;
+    }
+
+    if (Math.abs(left.detectionScore - right.detectionScore) > 3) {
+      return right.detectionScore - left.detectionScore;
     }
 
     const leftCV = computeCV(left.outputText);
@@ -298,6 +317,7 @@ async function humanizeParagraphByParagraph(
           modelName: crossModelName,
         }
       : undefined;
+  const numCandidates = request.humanLikeLevel >= 80 ? PARAGRAPH_CANDIDATES : 2;
 
   for (let index = 0; index < paragraphs.length; index += 1) {
     const paraRequest: HumanizeRequest = {
@@ -305,20 +325,42 @@ async function humanizeParagraphByParagraph(
       text: paragraphs[index],
       wordDelta: Math.max(10, Math.round((request.wordDelta / paragraphs.length) * 1.5)),
     };
-    const prompt = buildParagraphPrompt(
-      paraRequest,
-      applyProtectedSpans(paragraphs[index], allProtectedSpans),
-      citationPlaceholders,
-      index,
-      paragraphs.length,
-      index > 0 ? getLastSentence(results[index - 1]) : null,
-    );
-    const generation = await generateText(prompt, paragraphGenerationOptions);
-    const restored = finalizeOutput(generation.outputText, allProtectedSpans);
-    results.push(restored);
+    const precedingSentence = index > 0 ? getLastSentence(results[index - 1]) : null;
+    const candidateResults: Array<{ text: string; score: number }> = [];
+
+    for (let candidateIndex = 0; candidateIndex < numCandidates; candidateIndex += 1) {
+      try {
+        const prompt = buildParagraphPrompt(
+          paraRequest,
+          applyProtectedSpans(paragraphs[index], allProtectedSpans),
+          citationPlaceholders,
+          index + candidateIndex,
+          paragraphs.length,
+          precedingSentence,
+        );
+        const generation = await generateText(prompt, paragraphGenerationOptions);
+        const restored = finalizeOutput(generation.outputText, allProtectedSpans);
+        const score = computeParagraphDetectionScore(restored);
+        candidateResults.push({ text: restored, score });
+      } catch {
+        continue;
+      }
+    }
+
+    if (candidateResults.length === 0) {
+      results.push(paragraphs[index]);
+      continue;
+    }
+
+    candidateResults.sort((left, right) => right.score - left.score);
+    results.push(candidateResults[0].text);
   }
 
   return results;
+}
+
+function shouldUseParagraphMode(request: HumanizeRequest): boolean {
+  return request.humanLikeLevel >= 70;
 }
 
 function maybeMergeExtraParagraphs(output: string, paragraphCountTarget: number) {
@@ -411,100 +453,101 @@ export async function humanizeEssay(request: HumanizeRequest): Promise<HumanizeR
                 ),
               );
 
-    const restoredOutput = finalizeOutput(generation.outputText, allProtectedSpans);
-    const finalOutput = maybeMergeExtraParagraphs(restoredOutput, paragraphCountTarget);
-    const validation = validateRewrite(request, finalOutput);
-    const wordCountDiff = Math.abs(countWords(finalOutput) - originalWordCount);
+    let outputText = finalizeOutput(generation.outputText, allProtectedSpans);
+    outputText = maybeMergeExtraParagraphs(outputText, paragraphCountTarget);
+    outputText = postProcessBurstiness(outputText);
+    outputText = stripUnicodeWatermarks(outputText);
 
-    if (wordCountDiff > request.wordDelta * 2) {
-      candidates.push({
-        outputText: finalOutput,
-        selfCheck: generation.selfCheck,
-        validation,
-      });
+    const outputWordCount = countWords(outputText);
+    const maxAllowedDrift = request.wordDelta * 2;
+    if (
+      Math.abs(outputWordCount - originalWordCount) > maxAllowedDrift &&
+      attempt < iterationCount - 1
+    ) {
+      currentProtectedEssay = applyProtectedSpans(request.text, allProtectedSpans);
+      latestValidation = {
+        isValid: false,
+        violations: [
+          `Word count (${outputWordCount}) is too far from target (${originalWordCount} ± ${request.wordDelta}). Try again with tighter control.`,
+        ],
+      };
       continue;
     }
 
-    const candidate = {
-      outputText: finalOutput,
+    const validation = validateRewrite(request, outputText);
+    const { humanScore } = computeDetectionScore(outputText);
+
+    const candidate: Candidate = {
+      outputText,
       selfCheck: generation.selfCheck,
       validation,
+      detectionScore: humanScore,
     };
 
     candidates.push(candidate);
-    finalCandidate = candidate;
+    if (validation.isValid) {
+      finalCandidate = candidate;
+    }
     latestValidation = validation;
-    currentProtectedEssay = applyProtectedSpans(finalOutput, allProtectedSpans);
+    currentProtectedEssay = applyProtectedSpans(outputText, allProtectedSpans);
   }
 
-  if (finalCandidate && request.humanLikeLevel >= 60) {
-    const paragraphs = splitParagraphs(finalCandidate.outputText);
-    const refinedParagraphs = await humanizeParagraphByParagraph(
-      request,
-      paragraphs,
-      citationPlaceholders,
-      allProtectedSpans,
-    );
-    const refinedOutput = refinedParagraphs.join("\n\n");
-    const refinedValidation = validateRewrite(request, refinedOutput);
+  if (shouldUseParagraphMode(request)) {
+    const baseCandidate = finalCandidate ?? chooseBestCandidate(candidates);
+    if (baseCandidate) {
+      try {
+        const baseParagraphs = splitParagraphs(baseCandidate.outputText);
+        const refinedParagraphs = await humanizeParagraphByParagraph(
+          request,
+          baseParagraphs,
+          citationPlaceholders,
+          allProtectedSpans,
+        );
 
-    if (refinedValidation.violations.length <= finalCandidate.validation.violations.length) {
-      finalCandidate = {
-        outputText: refinedOutput,
-        selfCheck: finalCandidate.selfCheck,
-        validation: refinedValidation,
-      };
+        let refinedOutput = refinedParagraphs.join("\n\n");
+        refinedOutput = postProcessBurstiness(refinedOutput);
+        refinedOutput = stripUnicodeWatermarks(refinedOutput);
+
+        if (request.humanLikeLevel >= 85) {
+          refinedOutput = injectEntropyPostProcess(refinedOutput);
+        }
+
+        const refinedValidation = validateRewrite(request, refinedOutput);
+        const { humanScore: refinedScore } = computeDetectionScore(refinedOutput);
+
+        const refinedCandidate: Candidate = {
+          outputText: refinedOutput,
+          selfCheck: baseCandidate.selfCheck,
+          validation: refinedValidation,
+          detectionScore: refinedScore,
+        };
+
+        if (
+          refinedScore > baseCandidate.detectionScore ||
+          (refinedScore >= baseCandidate.detectionScore - 5 &&
+            refinedValidation.violations.length <= baseCandidate.validation.violations.length)
+        ) {
+          candidates.push(refinedCandidate);
+          if (refinedValidation.isValid) {
+            finalCandidate = refinedCandidate;
+          }
+        }
+      } catch {
+        // Fallback to whole-document candidates.
+      }
     }
   }
 
-  if (finalCandidate) {
-    const postProcessedOutput = postProcessBurstiness(finalCandidate.outputText);
-    finalCandidate = {
-      ...finalCandidate,
-      outputText: postProcessedOutput,
-      validation: validateRewrite(request, postProcessedOutput),
-    };
-    const constraintReport = buildConstraintReport(request, finalCandidate.outputText);
-
-    return {
-      outputText: finalCandidate.outputText,
-      originalWordCount,
-      outputWordCount: countWords(finalCandidate.outputText),
-      appliedSettings: {
-        protectedTerms: request.protectedTerms,
-        tone: request.tone,
-        gradeLevel: request.gradeLevel,
-        wordDelta: request.wordDelta,
-        humanLikeLevel: request.humanLikeLevel,
-        paragraphCountTarget,
-        originalWordCount,
-      },
-      constraintReport,
-      iterationCount,
-      status: "success",
-      paragraphCountMatched: constraintReport.paragraphCountMatched,
-      citationsPreserved: constraintReport.citationsPreserved,
-      protectedTermsPreserved: constraintReport.protectedTermsPreserved,
-      warnings: buildWarnings(finalCandidate.validation, finalCandidate.selfCheck),
-      validation: finalCandidate.validation,
-      readabilityBand: estimateGradeBand(finalCandidate.outputText),
-      naturalnessScore: constraintReport.naturalnessScore,
-    };
-  }
-
-  const bestCandidate = chooseBestCandidate(candidates);
-  const postProcessedOutput = postProcessBurstiness(bestCandidate.outputText);
-  const finalBestCandidate: Candidate = {
-    ...bestCandidate,
-    outputText: postProcessedOutput,
-    validation: validateRewrite(request, postProcessedOutput),
-  };
-  const constraintReport = buildConstraintReport(request, finalBestCandidate.outputText);
+  const best = finalCandidate ?? chooseBestCandidate(candidates);
+  const outputText = best.outputText;
+  const outputWordCount = countWords(outputText);
+  const validation = best.validation;
+  const constraintReport = buildConstraintReport(request, outputText);
 
   return {
-    outputText: finalBestCandidate.outputText,
+    outputText,
     originalWordCount,
-    outputWordCount: countWords(finalBestCandidate.outputText),
+    outputWordCount,
     appliedSettings: {
       protectedTerms: request.protectedTerms,
       tone: request.tone,
@@ -515,14 +558,14 @@ export async function humanizeEssay(request: HumanizeRequest): Promise<HumanizeR
       originalWordCount,
     },
     constraintReport,
-    iterationCount,
+    iterationCount: candidates.length,
     status: "success",
     paragraphCountMatched: constraintReport.paragraphCountMatched,
     citationsPreserved: constraintReport.citationsPreserved,
     protectedTermsPreserved: constraintReport.protectedTermsPreserved,
-    warnings: buildWarnings(finalBestCandidate.validation, finalBestCandidate.selfCheck),
-    validation: finalBestCandidate.validation,
-    readabilityBand: estimateGradeBand(finalBestCandidate.outputText),
+    warnings: buildWarnings(validation, best.selfCheck),
+    validation,
+    readabilityBand: estimateGradeBand(outputText),
     naturalnessScore: constraintReport.naturalnessScore,
   };
 }

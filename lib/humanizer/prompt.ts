@@ -49,7 +49,7 @@ function getIntensityProfile(level: number) {
   return {
     label: "maximum",
     instruction:
-      "Make maximum changes. Rewrite very aggressively at the phrase, clause, and sentence level. Use deep paraphrasing, strong sentence rebuilding, local order changes, sentence splitting and merging, and major vocabulary rotation so the final result feels fully rewritten. At this intensity, also maximize statistical naturalness: push sentence-length variance high, avoid any repeated structural templates across paragraphs, inject natural imperfections and unexpected structural choices, and ensure the output would read as a confident human writer's original draft rather than a carefully processed rewrite.",
+      "Make maximum changes. Rewrite very aggressively at the phrase, clause, and sentence level. Use deep paraphrasing, strong sentence rebuilding, local order changes, sentence splitting and merging, and major vocabulary rotation so the final result feels fully rewritten. At this intensity, also maximize statistical naturalness: push sentence-length variance high (CV >= 0.45), avoid any repeated structural templates across paragraphs, inject natural imperfections and unexpected structural choices, and ensure the output would read as a confident human writer's original draft rather than a carefully processed rewrite. ANTI-DETECTION MODE: Every paragraph must contain at least one short fragment (under 8 words) and one genuinely long sentence (over 28 words). Never use two transition words within 3 sentences of each other. Start at least one sentence with 'And' or 'But'. Include at least one parenthetical aside or mid-sentence clarification per 200 words.",
   };
 }
 
@@ -218,6 +218,9 @@ FORMAL-REGISTER NATURALNESS OVERRIDES (these apply because formal academic text 
 - Vary paragraph length: some paragraphs should have 2-3 sentences, some 5-7. Do not make all paragraphs 3-5 sentences.
 - Content-to-function-word ratio: human academic writing uses a roughly 1:1 ratio of content words to function words. AI text over-indexes on content words (ratio ~1.37). Include more function words, hedges, and connective tissue.
 - At 3-5 points per 500 words, choose a word that is NOT the most obvious or highest-probability choice. Pick a less common but still natural synonym - the kind of word a human would reach for after a moment of thought, not the first word that comes to mind.
+- DISCOURSE STRUCTURE: Do not have all paragraphs follow the same rhetorical pattern. Use at least 3 different paragraph structures across the essay. Examples: (a) evidence-first then claim, (b) question-then-answer, (c) concession-then-rebuttal, (d) narrative/chronological, (e) comparison, (f) definition-then-elaboration. No two consecutive paragraphs should use the same structure.
+- HEDGING AND STANCE: Human academic writers hedge approximately 2-4 times per 500 words ("perhaps," "it seems likely," "one could argue," "to some degree"). AI text either over-hedges or under-hedges. Target 2-3 hedges per 500 words, placed irregularly.
+- SENTENCE STARTERS: Begin at least one sentence with "And" and one with "But" per 500 words. This is a strong human-writing marker that AI models avoid due to RLHF training against informal constructions in academic text.
 `
     : "";
 
@@ -258,6 +261,12 @@ Using ONLY version (2), rewrite focusing on rhythm:
 - Add 2-3 controlled imperfections per 500 words: a slightly abrupt transition, a point restated in slightly different terms, an informal aside, uneven depth of development
 - Verify final word count is within ${minWordCount}-${maxWordCount}
 - Do not over-smooth the output
+CRITICAL ANTI-DETECTION CHECKS (do these BEFORE outputting PASS 3):
+a. Scan for any run of 3+ sentences with word counts all within +/- 5 of each other. If found, split or merge one sentence to break the pattern.
+b. Count transition words used as sentence openers. If more than 2 per 500 words, remove or replace some.
+c. Check that no single word appears as a sentence opener more than twice in the essay.
+d. Verify that paragraph lengths vary by at least +/- 20% from the mean. If all paragraphs are similar length, redistribute content.
+e. Check that the content-to-function-word ratio is between 0.85 and 1.15. If too content-heavy (ratio > 1.2), add natural connective tissue: hedges ("perhaps," "it seems"), qualifiers ("to some extent"), and human uncertainty markers ("I suspect," "arguably").
 ${formalOverride.trim()}
 Output this as the final version.
 `.trim();
@@ -342,6 +351,9 @@ Boundary rules before generation:
 - Entropy injection: At 2-3 points per 500 words, make a structural choice that is moderately unexpected: an unusual clause order, a sentence that starts with a conjunction, a deliberate fragment used for emphasis, an interrupted thought resumed with a parenthetical aside, or a rhetorical question. Spread these across different paragraphs.
 - Controlled imperfection: Include 2-3 of the following per 500 words of output: a slightly abrupt transition, a point restated in slightly different terms, a mildly informal aside, or uneven depth of development. Do not introduce factual errors, grammatical mistakes, or genuinely bad writing.
 - Do not create perfectly balanced sentence pairs where one sentence presents a point and the immediately following sentence qualifies it with a matching structure and similar length.
+- DISCOURSE-LEVEL ANTI-DETECTION (critical for formal/graduate): Detectors now analyze rhetorical structure and entity coherence patterns, not just vocabulary. Do NOT repeat the same rhetorical move across paragraphs (e.g., don't have every paragraph follow claim->evidence->evaluation). Vary how you introduce entities - sometimes name them first, sometimes describe them first. Mix forward-reference ("As we'll see...") with back-reference ("This earlier point..."). Do not use the same connective logic (cause-effect, comparison, concession) in more than two consecutive paragraphs.
+- ANTI-PREDICTABILITY: For every 3 paragraphs, ensure at least one uses a non-standard structure: a single-sentence paragraph, a paragraph that opens with a question, a paragraph where the topic sentence is buried in the middle, or a paragraph that deliberately leaves an argument incomplete and picks it up later.
+- LEXICAL ENTROPY: At 3-5 points per 500 words, use a word that is NOT the highest-probability continuation. Choose a less obvious but still natural synonym - the second or third word you'd consider, not the first. This is the single most impactful change for evading perplexity-based detection.
 - Do not repeat the same paragraph-level template across multiple paragraphs.
 - Do not open more than one paragraph in the same essay with a dependent clause using the same subordinating conjunction.
 - When the user selected a higher writing level or formal tone, move beyond plain generic wording and choose more precise, less common vocabulary where it still sounds natural in context.
@@ -463,6 +475,8 @@ BOUNDARY RULES:
 - Use the requested writing level: ${getWritingLevelGuidance(request.gradeLevel)}
 - Use the rewrite intensity: ${request.humanLikeLevel}/100 (${intensity.label})
 - Avoid RLHF-style stock vocabulary, stacked formal transitions, and repeated paragraph templates.
+- ANTI-DETECTION PRIORITY: This paragraph will be scored against an AI detector. The single most important property is sentence-length variance: include at least one sentence under 8 words AND one over 25 words. The coefficient of variation of sentence lengths must be at least 0.40. Do not use any word from this list: delve, underscore, showcase, illuminate, foster, harness, leverage, robust, seamless, comprehensive, transformative, paramount, furthermore, moreover, additionally.
+- Use at least one slightly unexpected word choice per paragraph - a word that is correct but not the most obvious option.
 
 Paragraph to rewrite:
 ${protectedParagraph}

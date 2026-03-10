@@ -5,6 +5,7 @@ import {
   restoreProtectedSpans,
 } from "@/lib/humanizer/citations";
 import { getHumanizerConfig, getHumanizerStatus } from "@/lib/humanizer/config";
+import { computeDetectionScore } from "@/lib/humanizer/detector";
 import { HumanizerError } from "@/lib/humanizer/errors";
 import { cleanupSurfacePatterns, downgradeOverwrittenWords, scoreNaturalness } from "@/lib/humanizer/naturalness";
 import { buildHumanizerPrompt, buildParagraphPrompt } from "@/lib/humanizer/prompt";
@@ -24,6 +25,7 @@ import {
   avoidsAiVocabulary,
   avoidsAbstractNounClusters,
   avoidsContrastTemplates,
+  avoidsConsecutiveLengthMonotony,
   avoidsEmDashes,
   avoidsExcessiveTriadicLists,
   avoidsIndirectFraming,
@@ -232,6 +234,11 @@ describe("naturalness rules", () => {
         "However the point lands. However the point still lands. However the point keeps landing. The rest of the paragraph stays simple.",
       ),
     ).toBe(false);
+    expect(
+      avoidsConsecutiveLengthMonotony(
+        "This sentence stays almost even with the next one. Here is another line with nearly the same amount of words. The third sentence keeps that same measured rhythm. Then a much shorter line breaks it.",
+      ),
+    ).toBe(false);
   });
 
   it("requires stronger rewriting at higher rewrite strengths", () => {
@@ -246,6 +253,20 @@ describe("naturalness rules", () => {
     expect(hasEnoughParagraphLevelRewriting(original, tooClose, 85)).toBe(false);
     expect(hasEnoughSentenceLevelRewriting(original, rewritten, 85)).toBe(true);
     expect(hasEnoughParagraphLevelRewriting(original, rewritten, 85)).toBe(true);
+  });
+
+  it("scores human text highly on the surrogate detector", () => {
+    const humanText =
+      "I walked to the store yesterday. It was cold. The wind cut through my jacket, and I found myself wishing I'd grabbed the heavier one from the back of my closet. But that's how it goes sometimes. You forget. The store had everything I needed, more or less.";
+    const { humanScore } = computeDetectionScore(humanText);
+    expect(humanScore).toBeGreaterThan(50);
+  });
+
+  it("scores uniform AI text low on the surrogate detector", () => {
+    const aiText =
+      "The implementation of advanced technologies has significantly transformed the landscape of modern education. Furthermore, the integration of digital tools has enhanced the learning experience for students. Additionally, the adoption of innovative methodologies has improved educational outcomes. Moreover, the utilization of data-driven approaches has facilitated better decision-making in academic institutions.";
+    const { humanScore } = computeDetectionScore(aiText);
+    expect(humanScore).toBeLessThan(40);
   });
 });
 
@@ -400,6 +421,15 @@ describe("prompt design", () => {
     expect(prompt).toContain("Do not start every paragraph with a topic sentence");
     expect(prompt).toContain("No transition word may be used as a sentence opener more than twice in the entire essay.");
     expect(prompt).toContain("Output only the final version from PASS 3");
+    expect(prompt).toContain("DISCOURSE-LEVEL ANTI-DETECTION");
+    expect(prompt).toContain("ANTI-PREDICTABILITY:");
+    expect(prompt).toContain("LEXICAL ENTROPY:");
+    expect(prompt).toContain("CRITICAL ANTI-DETECTION CHECKS");
+    expect(prompt).toContain("Verify that paragraph lengths vary by at least +/- 20% from the mean.");
+    expect(prompt).toContain("Check that the content-to-function-word ratio is between 0.85 and 1.15.");
+    expect(prompt).toContain("DISCOURSE STRUCTURE:");
+    expect(prompt).toContain("HEDGING AND STANCE:");
+    expect(prompt).toContain("SENTENCE STARTERS:");
   });
 
   it("changes intensity guidance clearly across rewrite-strength settings", () => {
@@ -480,6 +510,9 @@ describe("prompt design", () => {
     expect(highPrompt).toContain("The higher the rewrite-strength setting, the more the result should differ in wording and sentence construction from the source.");
     expect(highPrompt).toContain("maximize statistical naturalness");
     expect(highPrompt).toContain("inject natural imperfections and unexpected structural choices");
+    expect(highPrompt).toContain("ANTI-DETECTION MODE");
+    expect(highPrompt).toContain("CV >= 0.45");
+    expect(highPrompt).toContain("Start at least one sentence with 'And' or 'But'");
   });
 
   it("does not tell the model to print None provided when no optional guards exist", () => {
@@ -521,5 +554,7 @@ describe("prompt design", () => {
     expect(prompt).toContain('The preceding paragraph ends with: "The first paragraph ends here."');
     expect(prompt).toContain("STRUCTURAL DIRECTIVE FOR THIS PARAGRAPH:");
     expect(prompt).toContain("Return ONLY the rewritten paragraph text.");
+    expect(prompt).toContain("ANTI-DETECTION PRIORITY:");
+    expect(prompt).toContain("Use at least one slightly unexpected word choice per paragraph");
   });
 });
