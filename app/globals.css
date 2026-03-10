@@ -249,7 +249,8 @@ textarea {
 .submit-note {
   color: var(--muted);
   font-size: 0.92rem;
-  align-self: flex-end;
+  align-self: center;
+  text-align: center;
 }
 
 .button {

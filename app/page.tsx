@@ -401,6 +401,9 @@ export default function HomePage() {
                 "Humanize essay"
               )}
             </button>
+            {loading ? (
+              <p className="submit-note">This may take up to 5 minutes</p>
+            ) : null}
           </div>
         </form>
 
