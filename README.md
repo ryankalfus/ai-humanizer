@@ -17,7 +17,7 @@ Private local Next.js web app for rewriting essays with hard guardrails and a mu
    ```bash
    npm install
    ```
-2. Copy `.env.example` to `.env.local`.
+2. Create `.env.local`.
 3. Add your OpenAI API key to `OPENAI_API_KEY`.
 4. Optional: set `OPENAI_MODEL` in `.env.local`.
 5. Restart the dev server after env changes.

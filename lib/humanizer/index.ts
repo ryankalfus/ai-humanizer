@@ -48,8 +48,15 @@ interface Candidate {
   detectionScore: number;
 }
 
+interface ParagraphCandidate {
+  text: string;
+  score: number;
+}
+
 const MAX_ATTEMPTS = 8;
 const PARAGRAPH_CANDIDATES = 3;
+const MIN_ATTEMPTS_BEFORE_EARLY_EXIT = 3;
+const STRONG_DETECTION_SCORE = 75;
 
 const defaultSelfCheck: ModelSelfCheck = {
   protectedTermsKept: false,
@@ -326,26 +333,35 @@ async function humanizeParagraphByParagraph(
       wordDelta: Math.max(10, Math.round((request.wordDelta / paragraphs.length) * 1.5)),
     };
     const precedingSentence = index > 0 ? getLastSentence(results[index - 1]) : null;
-    const candidateResults: Array<{ text: string; score: number }> = [];
+    const protectedParagraph = applyProtectedSpans(paragraphs[index], allProtectedSpans);
+    const candidateResults = (
+      await Promise.allSettled(
+        Array.from({ length: numCandidates }, (_, candidateIndex) => {
+          const prompt = buildParagraphPrompt(
+            paraRequest,
+            protectedParagraph,
+            citationPlaceholders,
+            index + candidateIndex,
+            paragraphs.length,
+            precedingSentence,
+          );
 
-    for (let candidateIndex = 0; candidateIndex < numCandidates; candidateIndex += 1) {
-      try {
-        const prompt = buildParagraphPrompt(
-          paraRequest,
-          applyProtectedSpans(paragraphs[index], allProtectedSpans),
-          citationPlaceholders,
-          index + candidateIndex,
-          paragraphs.length,
-          precedingSentence,
-        );
-        const generation = await generateText(prompt, paragraphGenerationOptions);
-        const restored = finalizeOutput(generation.outputText, allProtectedSpans);
-        const score = computeParagraphDetectionScore(restored);
-        candidateResults.push({ text: restored, score });
-      } catch {
-        continue;
-      }
-    }
+          return generateText(prompt, paragraphGenerationOptions).then<ParagraphCandidate>(
+            (generation) => {
+              const restored = finalizeOutput(generation.outputText, allProtectedSpans);
+              return {
+                text: restored,
+                score: computeParagraphDetectionScore(restored),
+              };
+            },
+          );
+        }),
+      )
+    )
+      .filter(
+        (result): result is PromiseFulfilledResult<ParagraphCandidate> => result.status === "fulfilled",
+      )
+      .map((result) => result.value);
 
     if (candidateResults.length === 0) {
       results.push(paragraphs[index]);
@@ -392,6 +408,27 @@ function maybeMergeExtraParagraphs(output: string, paragraphCountTarget: number)
   }
 
   return correctedOutput;
+}
+
+function shouldStopEarly(
+  attempt: number,
+  iterationCount: number,
+  candidate: Candidate,
+  latestValidation: ValidationResult | null,
+) {
+  if (attempt + 1 < MIN_ATTEMPTS_BEFORE_EARLY_EXIT || attempt + 1 >= iterationCount) {
+    return false;
+  }
+
+  if (!candidate.validation.isValid || candidate.detectionScore < STRONG_DETECTION_SCORE) {
+    return false;
+  }
+
+  if (!latestValidation || latestValidation.isValid) {
+    return true;
+  }
+
+  return candidate.validation.violations.length < latestValidation.violations.length;
 }
 
 export async function humanizeEssay(request: HumanizeRequest): Promise<HumanizeResponse> {
@@ -488,6 +525,13 @@ export async function humanizeEssay(request: HumanizeRequest): Promise<HumanizeR
     if (validation.isValid) {
       finalCandidate = candidate;
     }
+
+    if (shouldStopEarly(attempt, iterationCount, candidate, latestValidation)) {
+      latestValidation = validation;
+      currentProtectedEssay = applyProtectedSpans(outputText, allProtectedSpans);
+      break;
+    }
+
     latestValidation = validation;
     currentProtectedEssay = applyProtectedSpans(outputText, allProtectedSpans);
   }

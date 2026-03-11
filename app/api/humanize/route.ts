@@ -3,6 +3,8 @@ import { humanizeEssay } from "@/lib/humanizer";
 import { HumanizerError } from "@/lib/humanizer/errors";
 import type { ApiErrorResponse, GradeLevel, Tone } from "@/lib/humanizer/types";
 
+export const maxDuration = 300;
+
 const bodySchema = z.object({
   text: z.string().trim().min(1, "Essay text is required."),
   protectedTerms: z.array(z.string().trim()).default([]),
